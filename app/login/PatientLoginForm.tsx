@@ -3,8 +3,10 @@
 import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export default function PatientLoginForm() {
+  const router = useRouter();
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
 
@@ -12,11 +14,12 @@ export default function PatientLoginForm() {
     e.preventDefault();
     // Handle login submission logic
     console.log('Login attempt with:', { identifier, password });
+    router.push('/dashboard');
   };
 
   const handleDemoLogin = () => {
-    // Handle demo patient access logic
-    console.log('Continuing as demo patient');
+    // Redirect directly to the dashboard journey page
+    router.push('/dashboard');
   };
 
   return (
