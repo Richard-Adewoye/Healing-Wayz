@@ -6,11 +6,11 @@ import Image from 'next/image';
 import { Menu, X } from 'lucide-react';
 
 const navLinks = [
-  { name: 'Services', href: '#services' },
+  { name: 'Services', href: '/services' },
   { name: 'Partner Hospitals', href: '/partner-hospitals' },
   { name: 'About', href: '/about' },
   { name: 'Blog', href: '/blog' },
-  { name: 'FAQs', href: 'faq' },
+  { name: 'FAQs', href: '/faq' },
   { name: 'Contact', href: '/contact' },
 ];
 
