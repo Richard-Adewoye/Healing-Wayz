@@ -10,7 +10,7 @@ const navLinks = [
   { name: 'Partner Hospitals', href: '/partner-hospitals' },
   { name: 'About', href: '/about' },
   { name: 'Blog', href: '/blog' },
-  { name: 'FAQs', href: '/faqs' },
+  { name: 'FAQs', href: 'faq' },
   { name: 'Contact', href: '/contact' },
 ];
 
