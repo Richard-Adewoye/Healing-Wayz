@@ -22,7 +22,7 @@ const hospitals: Hospital[] = [
     region: 'West Africa',
     description: 'A leading specialist hospital recognized for advanced cardiac and cancer care, with a strong patient-centered approach and multidisciplinary teams.',
     tags: ['Cardiology', 'Oncology', 'Orthopedics'],
-    image: '/images/hospitals/lagoon.jpg',
+    image: '/images/hospital-one.avif',
   },
   {
     id: 'accra-heart',
@@ -31,7 +31,7 @@ const hospitals: Hospital[] = [
     region: 'West Africa',
     description: 'A dedicated cardiac center known for advanced diagnostic imaging and interventional cardiology services.',
     tags: ['Cardiology', 'Vascular Surgery'],
-    image: '/images/hospitals/accra-heart.jpg',
+    image: '/images/hospital-three.avif',
   },
   {
     id: 'douala-general',
@@ -40,7 +40,7 @@ const hospitals: Hospital[] = [
     region: 'West Africa',
     description: 'A key regional referral hospital offering a broad range of specialized medical and surgical services.',
     tags: ['General Surgery', 'Maternal Health'],
-    image: '/images/hospitals/douala.jpg',
+    image: '/images/hospital-eight.avif',
   },
   {
     id: 'kinshasa-mc',
@@ -49,7 +49,7 @@ const hospitals: Hospital[] = [
     region: 'West Africa',
     description: 'A trusted community hospital providing comprehensive general and pediatric care across the region.',
     tags: ['General Medicine', 'Pediatrics'],
-    image: '/images/hospitals/kinshasa.jpg',
+    image: '/images/hospital-two.avif',
   },
   {
     id: 'apex-multispecialty',
@@ -58,7 +58,7 @@ const hospitals: Hospital[] = [
     region: 'Asia',
     description: 'An internationally recognized institution offering advanced treatment across multiple specialties, with dedicated international patient services.',
     tags: ['Oncology', 'Neurology', 'Organ Transplant'],
-    image: '/images/hospitals/apex.jpg',
+    image: '/images/hospital-four.avif',
   },
   {
     id: 'raffles-specialist',
@@ -67,7 +67,7 @@ const hospitals: Hospital[] = [
     region: 'Asia',
     description: 'A modern medical center recognized for advanced orthopedic and fertility treatment programs.',
     tags: ['Orthopedics', 'Fertility', 'Eye Care'],
-    image: '/images/hospitals/raffles.jpg',
+    image: '/images/hospital-five.avif',
   },
   {
     id: 'al-noor',
@@ -76,7 +76,7 @@ const hospitals: Hospital[] = [
     region: 'Arab Region',
     description: 'A premier medical center combining advanced technology with internationally trained specialists.',
     tags: ['Cardiology', 'Orthopedics', 'Rehabilitation'],
-    image: '/images/hospitals/al-noor.jpg',
+    image: '/images/hospital-six.avif',
   },
   {
     id: 'crescent-care',
@@ -85,7 +85,7 @@ const hospitals: Hospital[] = [
     region: 'Arab Region',
     description: 'A large-scale medical city offering comprehensive specialty and tertiary care services.',
     tags: ['Oncology', 'Cardiology'],
-    image: '/images/hospitals/crescent.jpg',
+    image: '/images/hospital-three.avif',
   },
 ];
 

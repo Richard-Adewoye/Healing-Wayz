@@ -32,7 +32,7 @@ export default function AboutHero() {
             <div className="absolute inset-0 bg-blue-100 transform translate-x-4 translate-y-4 rounded-2xl -z-10" />
             <div className="relative w-full max-w-lg h-[350px] sm:h-[400px] rounded-2xl overflow-hidden shadow-lg">
               <Image
-                src="/images/about-hero-surgeons.jpg"
+                src="/images/about-image.avif"
                 alt="Medical team performing surgery"
                 fill
                 className="object-cover"

@@ -120,7 +120,7 @@ export default function ContactFormSection() {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="relative h-48 w-full bg-red-600">
                 <Image
-                  src="/images/doctor-banner.jpg"
+                  src="/images/about-image-three.avif"
                   alt="Healthcare Specialist"
                   fill
                   className="object-cover object-center"

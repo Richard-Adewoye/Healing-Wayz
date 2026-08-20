@@ -39,7 +39,7 @@ export default function SectionThree() {
           <div className="relative">
             <div className="absolute inset-0 bg-emerald-100 transform translate-x-4 -translate-y-4 rounded-xl -z-10" />
             <Image
-              src="/images/doctors-xray.jpg"
+              src="/images/image-four.avif"
               alt="Medical Consultation"
               width={600}
               height={400}

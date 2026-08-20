@@ -8,7 +8,7 @@ const hospitals = [
     location: 'Lagos, Nigeria',
     description: 'A leading specialist hospital recognized for advanced cardiac and cancer care, with a strong patient-centered approach and multidisciplinary teams.',
     tags: ['Cardiology', 'Oncology', 'Orthopedics'],
-    image: '/images/lagoon-hospital.jpg',
+    image: '/images/hospital-one.avif',
   },
   {
     region: 'West Africa',
@@ -16,7 +16,7 @@ const hospitals = [
     location: 'Accra, Ghana',
     description: 'A dedicated cardiac center known for advanced diagnostic imaging and interventional cardiology services.',
     tags: ['Cardiology', 'Vascular Surgery'],
-    image: '/images/accra-heart.jpg',
+    image: '/images/hospital-six.avif',
   },
   {
     region: 'West Africa',
@@ -24,7 +24,7 @@ const hospitals = [
     location: 'Douala, Cameroon',
     description: 'A key regional referral hospital offering a broad range of specialized medical and surgical services.',
     tags: ['General Surgery', 'Maternal Health'],
-    image: '/images/douala-hospital.jpg',
+    image: '/images/hospital-four.avif',
   },
 ];
 

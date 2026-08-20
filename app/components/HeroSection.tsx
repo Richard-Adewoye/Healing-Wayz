@@ -41,7 +41,7 @@ export default function HeroSection() {
             <div className="absolute w-80 h-80 sm:w-96 sm:h-96 bg-blue-500 rounded-full z-0" />
             <div className="relative z-10 w-full max-w-md">
               <Image
-                src="/images/doctor-hero.png"
+                src="/images/image one.jfif"
                 alt="Healthcare Professional"
                 width={500}
                 height={600}

@@ -40,7 +40,7 @@ export default function SectionTwo() {
           <div className="relative">
             <div className="absolute inset-0 bg-emerald-100 transform -translate-x-4 -translate-y-4 rounded-xl -z-10" />
             <Image
-              src="/images/team-discussion.jpg"
+              src="/images/image-three.avif"
               alt="Medical Coordinators"
               width={600}
               height={400}
