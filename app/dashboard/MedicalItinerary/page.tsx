@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import Link from 'next/link';
 import { 
   Bell, 
   Plus, 
@@ -28,13 +29,13 @@ export default function MedicalItineraryPage() {
   const [activeTab, setActiveTab] = useState<'journey' | 'itinerary'>('journey');
 
   const steps = [
-    { number: 1, title: "Consultation Submitted", completed: true },
-    { number: 2, title: "Case Review", completed: true },
-    { number: 3, title: "Hospital Recommendation", completed: true },
-    { number: 4, title: "Medical Itinerary", active: true },
-    { number: 5, title: "Accommodation & Visa" },
-    { number: 6, title: "Travel Preparation" },
-    { number: 7, title: "Treatment & Recovery" },
+    { number: 1, title: 'Consultation Submitted', completed: true, href: '/consultation' },
+    { number: 2, title: 'Case Review', completed: true, href: '/case-review' },
+    { number: 3, title: 'Hospital Recommendation', completed: true, href: '/recommendations' },
+    { number: 4, title: 'Medical Itinerary', active: true, href: '/medical-itinerary' },
+    { number: 5, title: 'Accommodation & Visa', href: '/accommodation' },
+    { number: 6, title: 'Travel Preparation', href: '/travel-prep' },
+    { number: 7, title: 'Treatment & Recovery', href: '/treatment-recovery' },
   ];
 
   const itineraryEvents = [
@@ -85,10 +86,10 @@ export default function MedicalItineraryPage() {
               <span>My Healthcare Journey</span>
             </button>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/recommendations" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <Building2 className="w-4 h-4" />
               <span>Recommendations</span>
-            </a>
+            </Link>
 
             <button
               onClick={() => setActiveTab('itinerary')}
@@ -102,40 +103,40 @@ export default function MedicalItineraryPage() {
               <span>Medical Itinerary</span>
             </button>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/accommodation" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <Briefcase className="w-4 h-4" />
               <span>Accommodation</span>
-            </a>
+            </Link>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/messages" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <MessageSquare className="w-4 h-4" />
               <span>Messages</span>
-            </a>
+            </Link>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/cases" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <Folder className="w-4 h-4" />
               <span>My Cases</span>
-            </a>
+            </Link>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/visa-support" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <ShieldCheck className="w-4 h-4" />
               <span>Visa Support</span>
-            </a>
+            </Link>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/billing" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <CreditCard className="w-4 h-4" />
               <span>Billing & Payments</span>
-            </a>
+            </Link>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/documents" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <FileText className="w-4 h-4" />
               <span>Documents</span>
-            </a>
+            </Link>
 
-            <a href="#" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
+            <Link href="/profile" className="flex items-center space-x-3 px-3 py-2.5 rounded-lg text-xs font-medium text-gray-600 hover:bg-gray-50">
               <User className="w-4 h-4" />
               <span>Profile</span>
-            </a>
+            </Link>
           </nav>
         </div>
 
@@ -147,19 +148,19 @@ export default function MedicalItineraryPage() {
         </div>
       </aside>
 
-      {/* Main Content */}
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col justify-between">
         <div>
-          {/* Header */}
+          {/* Header Bar */}
           <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
             <h1 className="text-xl font-bold text-[#1e293b]">
               {activeTab === 'journey' ? 'My Healthcare Journey' : 'Medical Itinerary'}
             </h1>
             
             <div className="flex items-center space-x-6">
-              <a href="#" className="text-sm font-medium text-[#2563eb] hover:underline flex items-center">
+              <Link href="/" className="text-sm font-medium text-[#2563eb] hover:underline flex items-center">
                 &larr; Back to Website
-              </a>
+              </Link>
               
               <div className="relative cursor-pointer">
                 <Bell className="w-5 h-5 text-gray-600 hover:text-gray-900" />
@@ -189,12 +190,15 @@ export default function MedicalItineraryPage() {
               </div>
               
               {activeTab === 'journey' && (
-                <button className="bg-[#2e7d32] hover:bg-[#256628] text-white font-medium px-4 py-2.5 rounded-lg flex items-center space-x-2 text-sm transition-colors shadow-sm self-start md:self-auto">
+                <Link 
+                  href="/consultation/new" 
+                  className="bg-[#2e7d32] hover:bg-[#256628] text-white font-medium px-4 py-2.5 rounded-lg flex items-center space-x-2 text-sm transition-colors shadow-sm self-start md:self-auto"
+                >
                   <div className="border border-white rounded-full p-0.5">
                     <Plus className="w-3.5 h-3.5" />
                   </div>
                   <span>New Consultation</span>
-                </button>
+                </Link>
               )}
             </div>
 
@@ -204,12 +208,12 @@ export default function MedicalItineraryPage() {
                 <div className="flex items-center space-x-3">
                   <Send className="w-5 h-5 text-[#2e7d32] transform -rotate-12" />
                   <p className="text-sm text-[#1b5e20] font-medium">
-                    <span className="font-semibold">New: Flight Booking & Scheduling</span> &mdash; save up to 5% on all flights.
+                    <span className="font-semibold">New: Flight Booking & Scheduling</span> — save up to 5% on all flights.
                   </p>
                 </div>
-                <a href="#" className="text-sm font-semibold text-[#1a237e] hover:underline flex items-center">
+                <Link href="/flights" className="text-sm font-semibold text-[#1a237e] hover:underline flex items-center">
                   Learn more &rarr;
-                </a>
+                </Link>
               </div>
             )}
 
@@ -225,7 +229,7 @@ export default function MedicalItineraryPage() {
                   <div className="absolute top-4 left-10 w-[50%] h-0.5 bg-[#2e7d32] -z-0" />
 
                   {steps.map((step) => (
-                    <div key={step.number} className="relative z-10 flex flex-col items-center text-center max-w-[100px]">
+                    <Link key={step.number} href={step.href} className="relative z-10 flex flex-col items-center text-center max-w-[100px]">
                       <div
                         className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors ${
                           step.completed
@@ -244,7 +248,7 @@ export default function MedicalItineraryPage() {
                       >
                         {step.title}
                       </span>
-                    </div>
+                    </Link>
                   ))}
                 </div>
 
@@ -320,7 +324,7 @@ export default function MedicalItineraryPage() {
                 edfgjkl;kjgfdrewqertyujk
               </p>
               <p className="text-xs text-gray-400 mt-3 font-medium">
-                Sarah James &middot; Just now
+                Sarah James · Just now
               </p>
             </div>
 
@@ -343,13 +347,13 @@ export default function MedicalItineraryPage() {
                     </div>
                   </div>
                   <p className="text-xs text-gray-500 mb-6">
-                    Available Monday&ndash;Friday, 9:00 AM&ndash;5:00 PM
+                    Available Monday–Friday, 9:00 AM–5:00 PM
                   </p>
                 </div>
                 <div>
-                  <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-1.5 rounded-lg text-xs transition-colors">
+                  <Link href="/messages" className="inline-block border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-1.5 rounded-lg text-xs transition-colors">
                     Send Message
-                  </button>
+                  </Link>
                 </div>
               </div>
 
@@ -376,13 +380,13 @@ export default function MedicalItineraryPage() {
                     &quot;Good question. Let me confirm the details with our clinical advisor and follow up within t...&quot;
                   </p>
                   <p className="text-xs text-gray-400 mb-4">
-                    Sarah James &middot; Just now
+                    Sarah James · Just now
                   </p>
                 </div>
-                <a href="#" className="text-xs font-bold text-[#1a237e] hover:underline flex items-center space-x-1">
+                <Link href="/messages" className="text-xs font-bold text-[#1a237e] hover:underline flex items-center space-x-1">
                   <span>Open Messages</span>
                   <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                </a>
+                </Link>
               </div>
 
               {/* Documents */}
@@ -394,10 +398,10 @@ export default function MedicalItineraryPage() {
                   <p className="text-xs font-medium text-gray-800">1 document on file</p>
                   <p className="text-xs text-gray-500 mt-2 mb-4">0 under review</p>
                 </div>
-                <a href="#" className="text-xs font-bold text-[#1a237e] hover:underline flex items-center space-x-1">
+                <Link href="/documents" className="text-xs font-bold text-[#1a237e] hover:underline flex items-center space-x-1">
                   <span>View Documents</span>
                   <ArrowRight className="w-3.5 h-3.5 ml-1" />
-                </a>
+                </Link>
               </div>
             </div>
 
@@ -407,28 +411,28 @@ export default function MedicalItineraryPage() {
                 Quick Actions
               </h4>
               <div className="flex flex-wrap gap-3">
-                <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
+                <Link href="/documents/upload" className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
                   Upload Document
-                </button>
-                <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
+                </Link>
+                <Link href="/recommendations" className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
                   View Recommendations
-                </button>
-                <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
+                </Link>
+                <Link href="/billing" className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
                   Billing & Payments
-                </button>
-                <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
+                </Link>
+                <Link href="/messages" className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
                   Message Coordinator
-                </button>
-                <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
+                </Link>
+                <Link href="/consultation/new" className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
                   Start a New Consultation
-                </button>
+                </Link>
               </div>
             </div>
 
           </main>
         </div>
 
-        {/* Footer Log Out */}
+        {/* Mobile Footer Log Out */}
         <footer className="border-t border-gray-200 bg-white px-6 py-3 mt-12 md:hidden">
           <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center space-x-2">
             <LogOut className="w-4 h-4 text-gray-500" />
