@@ -17,7 +17,7 @@ import {
 const sidebarNavItems = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
   { label: 'Patient Cases', icon: Users, href: '/admin/cases' },
-  { label: 'Document Review', icon: FileCheck, href: '/admin/documents' },
+  { label: 'Document Review', icon: FileCheck, href: '/admin/document-review' },
   { label: 'Tasks', icon: CheckSquare, href: '/admin/tasks' },
   { label: 'Messages', icon: MessageSquare, href: '/admin/messages' },
   { label: 'Partner Network', icon: Building2, href: '/admin/partners' },
