@@ -20,7 +20,7 @@ const sidebarNavItems = [
   { label: 'Document Review', icon: FileCheck, href: '/admin/document-review' },
   { label: 'Tasks', icon: CheckSquare, href: '/admin/tasks' },
   { label: 'Messages', icon: MessageSquare, href: '/admin/messages' },
-  { label: 'Partner Network', icon: Building2, href: '/admin/partners' },
+  { label: 'Partner Network', icon: Building2, href: '/admin/partner-network' },
   { label: 'Accommodation', icon: Bed, href: '/admin/accommodation-admin' },
 ];
 
