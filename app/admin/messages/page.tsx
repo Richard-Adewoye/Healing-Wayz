@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Send } from 'lucide-react';
+import { Send, ArrowLeft } from 'lucide-react';
 
 interface Message {
   id: string;
@@ -84,10 +84,16 @@ const mockConversations: Conversation[] = [
 
 export default function MessagesPage() {
   const [selectedId, setSelectedId] = useState<string>('1');
+  const [showMobileChat, setShowMobileChat] = useState<boolean>(false);
   const [inputText, setInputText] = useState('');
   const [conversations, setConversations] = useState(mockConversations);
 
   const activeConversation = conversations.find((c) => c.id === selectedId) || conversations[0];
+
+  const handleSelectConversation = (id: string) => {
+    setSelectedId(id);
+    setShowMobileChat(true);
+  };
 
   const handleSendMessage = (e: React.FormEvent) => {
     e.preventDefault();
@@ -117,13 +123,20 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="p-8 h-[calc(100vh-73px)] flex flex-col font-sans">
-      <h2 className="text-2xl font-bold text-[#1E3A8A] mb-6">Messages</h2>
+    <div className="p-4 sm:p-6 md:p-8 h-[calc(100vh-80px)] sm:h-[calc(100vh-100px)] flex flex-col font-sans max-w-7xl mx-auto w-full min-w-0">
+      <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A] mb-4 sm:mb-6 shrink-0">
+        Messages
+      </h2>
 
       {/* Main Container Card */}
-      <div className="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex min-h-0 shadow-sm">
+      <div className="flex-1 bg-white border border-slate-200 rounded-xl overflow-hidden flex min-h-0 shadow-sm relative">
+        
         {/* Left Sidebar - Conversation List */}
-        <div className="w-80 border-r border-slate-200 flex flex-col bg-white shrink-0">
+        <div
+          className={`w-full md:w-80 border-r border-slate-200 flex flex-col bg-white shrink-0 ${
+            showMobileChat ? 'hidden md:flex' : 'flex'
+          }`}
+        >
           <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
             {conversations.map((conv) => {
               const isSelected = conv.id === selectedId;
@@ -131,7 +144,7 @@ export default function MessagesPage() {
               return (
                 <button
                   key={conv.id}
-                  onClick={() => setSelectedId(conv.id)}
+                  onClick={() => handleSelectConversation(conv.id)}
                   className={`w-full text-left p-4 transition-colors relative block ${
                     isSelected
                       ? 'bg-[#ECFDF5] border-l-4 border-[#10B981]'
@@ -139,9 +152,11 @@ export default function MessagesPage() {
                   }`}
                 >
                   <div className="flex items-center justify-between mb-1">
-                    <span className="font-bold text-slate-800 text-sm">{conv.name}</span>
+                    <span className="font-bold text-slate-800 text-xs sm:text-sm truncate pr-2">
+                      {conv.name}
+                    </span>
                     {conv.unread && (
-                      <span className="w-2.5 h-2.5 bg-red-500 rounded-full inline-block" />
+                      <span className="w-2.5 h-2.5 bg-red-500 rounded-full shrink-0 inline-block" />
                     )}
                   </div>
                   <p
@@ -158,24 +173,37 @@ export default function MessagesPage() {
         </div>
 
         {/* Right Pane - Chat Window */}
-        <div className="flex-1 flex flex-col min-w-0 bg-white">
+        <div
+          className={`flex-1 flex flex-col min-w-0 bg-white ${
+            !showMobileChat ? 'hidden md:flex' : 'flex'
+          }`}
+        >
           {/* Active Chat Header */}
-          <div className="p-4 px-6 border-b border-slate-100 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-sm">
+          <div className="p-3 sm:p-4 px-4 sm:px-6 border-b border-slate-100 flex items-center gap-3 shrink-0">
+            {/* Mobile Back Button */}
+            <button
+              onClick={() => setShowMobileChat(false)}
+              className="md:hidden p-1.5 -ml-1 text-slate-600 hover:text-slate-900 rounded-lg transition-colors"
+              aria-label="Back to messages"
+            >
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#1E3A8A] text-white flex items-center justify-center font-bold text-xs sm:text-sm shrink-0">
               {activeConversation.avatarLetter}
             </div>
-            <div>
-              <h3 className="font-bold text-slate-800 text-sm leading-tight">
+            <div className="min-w-0">
+              <h3 className="font-bold text-slate-800 text-xs sm:text-sm leading-tight truncate">
                 {activeConversation.name}
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5 font-medium">
+              <p className="text-[11px] sm:text-xs text-slate-400 mt-0.5 font-medium truncate">
                 {activeConversation.caseId}
               </p>
             </div>
           </div>
 
           {/* Messages Scroll Area */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-4">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4">
             {activeConversation.messages.map((msg) => {
               const isAgent = msg.sender === 'agent';
 
@@ -185,13 +213,13 @@ export default function MessagesPage() {
                   className={`flex flex-col ${isAgent ? 'items-end' : 'items-start'}`}
                 >
                   <div
-                    className={`max-w-[80%] rounded-xl p-4 text-sm leading-relaxed ${
+                    className={`max-w-[85%] sm:max-w-[80%] rounded-xl p-3 sm:p-4 text-xs sm:text-sm leading-relaxed ${
                       isAgent
                         ? 'bg-[#34A853] text-white rounded-tr-none'
                         : 'bg-slate-50 border border-slate-200 text-slate-700 rounded-tl-none min-w-[80px]'
                     }`}
                   >
-                    <p>{msg.text}</p>
+                    <p className="break-words">{msg.text}</p>
                     <span
                       className={`text-[10px] block mt-1 ${
                         isAgent ? 'text-emerald-800/60' : 'text-slate-400'
@@ -206,24 +234,26 @@ export default function MessagesPage() {
           </div>
 
           {/* Chat Input Bar */}
-          <div className="p-4 border-t border-slate-100">
-            <form onSubmit={handleSendMessage} className="flex items-center gap-3">
+          <div className="p-3 sm:p-4 border-t border-slate-100 shrink-0">
+            <form onSubmit={handleSendMessage} className="flex items-center gap-2 sm:gap-3">
               <input
                 type="text"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 placeholder="Type a reply..."
-                className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-5 py-2.5 text-sm text-slate-800 focus:outline-none focus:border-slate-300 placeholder:text-slate-400"
+                className="flex-1 bg-slate-50 border border-slate-200 rounded-full px-4 sm:px-5 py-2 sm:py-2.5 text-xs sm:text-sm text-slate-800 focus:outline-none focus:border-slate-300 placeholder:text-slate-400 min-w-0"
               />
               <button
                 type="submit"
-                className="bg-[#34A853] hover:bg-[#2e9649] text-white font-medium text-sm px-6 py-2.5 rounded-lg transition-colors flex items-center gap-2"
+                className="bg-[#34A853] hover:bg-[#2e9649] text-white font-medium text-xs sm:text-sm px-4 sm:px-6 py-2 sm:py-2.5 rounded-lg transition-colors flex items-center justify-center gap-2 shrink-0"
               >
-                Send
+                <span className="hidden sm:inline">Send</span>
+                <Send className="w-4 h-4 sm:hidden" />
               </button>
             </form>
           </div>
         </div>
+
       </div>
     </div>
   );

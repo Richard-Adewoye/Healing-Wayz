@@ -146,22 +146,22 @@ export default function TasksPage() {
   });
 
   return (
-    <div className="p-8 max-w-7xl mx-auto w-full space-y-6">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 min-w-0">
       {/* Title Header */}
       <div>
-        <h2 className="text-2xl font-bold text-[#1E3A8A]">Tasks</h2>
-        <p className="text-sm text-slate-500 mt-1">
+        <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A]">Tasks</h2>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
           Everything your team needs to action, across every case.
         </p>
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         {(['All', 'Open', 'Done'] as FilterTab[]).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
-            className={`px-5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+            className={`px-4 sm:px-5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
               activeTab === tab
                 ? 'bg-[#1E3A8A] text-white'
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -177,20 +177,20 @@ export default function TasksPage() {
         {filteredTasks.map((task) => (
           <div
             key={task.id}
-            className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm flex items-start justify-between gap-4 transition-all hover:shadow-md"
+            className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4 transition-all hover:shadow-md min-w-0"
           >
-            <div className="flex items-start gap-3.5">
+            <div className="flex items-start gap-3 min-w-0">
               <input
                 type="checkbox"
                 checked={task.completed}
                 onChange={() => toggleTaskCompletion(task.id)}
-                className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer accent-[#2563EB]"
+                className="mt-1 h-4 w-4 sm:h-5 sm:w-5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer accent-[#2563EB]"
               />
 
-              <div className="space-y-1">
+              <div className="space-y-1 min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span
-                    className={`text-sm font-semibold transition-all ${
+                    className={`text-xs sm:text-sm font-semibold transition-all break-words ${
                       task.completed
                         ? 'line-through text-slate-400 font-normal'
                         : 'text-slate-800'
@@ -200,14 +200,14 @@ export default function TasksPage() {
                   </span>
 
                   {task.isAuto && (
-                    <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 ml-1">
+                    <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-emerald-600 shrink-0">
                       <Zap className="w-3.5 h-3.5 fill-emerald-600 text-emerald-600" />
                       Auto
                     </span>
                   )}
                 </div>
 
-                <p className="text-xs text-slate-400 font-medium">
+                <p className="text-[11px] sm:text-xs text-slate-400 font-medium leading-relaxed">
                   {task.patientName} &middot; {task.caseId} &middot; {task.dueDate}
                 </p>
               </div>
@@ -215,7 +215,7 @@ export default function TasksPage() {
 
             <Link
               href={`/admin/cases/${task.caseId}`}
-              className="text-xs font-bold text-[#1E3A8A] hover:underline shrink-0 mt-0.5"
+              className="text-xs font-bold text-[#1E3A8A] hover:underline shrink-0 self-end sm:self-start sm:mt-0.5 pl-7 sm:pl-0"
             >
               Open Case &rarr;
             </Link>
@@ -223,7 +223,7 @@ export default function TasksPage() {
         ))}
 
         {filteredTasks.length === 0 && (
-          <div className="bg-white border border-slate-200 rounded-2xl p-12 text-center text-slate-400 text-sm">
+          <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 text-center text-slate-400 text-xs sm:text-sm">
             No tasks found in this section.
           </div>
         )}

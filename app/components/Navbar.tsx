@@ -27,7 +27,7 @@ export default function Navbar() {
             {/* Replace /images/logo.png with your actual logo asset */}
             <div className="relative w-36 h-10">
               <Image
-                src="/images/logo.png"
+                src="/healing-ways-logo.png"
                 alt="HealingWays Logo"
                 fill
                 className="object-contain object-left"

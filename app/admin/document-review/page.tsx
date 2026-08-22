@@ -154,20 +154,20 @@ export default function DocumentReviewPage() {
     return (
       <div
         key={doc.id}
-        className="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm space-y-4"
+        className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4 min-w-0"
       >
         {/* Header Row */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
+          <div className="flex items-start gap-3 min-w-0">
             <div className="p-2 border border-slate-200 rounded-lg text-slate-500 bg-slate-50 shrink-0 mt-0.5">
               <FileIcon className="w-5 h-5" />
             </div>
 
-            <div className="space-y-1">
-              <h3 className="font-bold text-[#1E3A8A] text-base hover:underline cursor-pointer">
+            <div className="space-y-1 min-w-0">
+              <h3 className="font-bold text-[#1E3A8A] text-sm sm:text-base hover:underline cursor-pointer break-all">
                 {doc.filename}
               </h3>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-slate-500 leading-relaxed">
                 {doc.patientName} &middot; {doc.caseId} &middot; {doc.category} &middot; {doc.date}
               </p>
 
@@ -181,11 +181,13 @@ export default function DocumentReviewPage() {
             </div>
           </div>
 
-          <span
-            className={`text-xs font-semibold px-3 py-1 rounded-full shrink-0 ${doc.statusBg} ${doc.statusText}`}
-          >
-            {doc.status}
-          </span>
+          <div className="self-start sm:self-auto shrink-0">
+            <span
+              className={`text-xs font-semibold px-3 py-1 rounded-full inline-block ${doc.statusBg} ${doc.statusText}`}
+            >
+              {doc.status}
+            </span>
+          </div>
         </div>
 
         {/* Feedback block (for update requested items) */}
@@ -196,20 +198,20 @@ export default function DocumentReviewPage() {
         )}
 
         {/* Action Controls Row */}
-        <div className="flex items-center gap-3 pt-2">
-          <button className="border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold px-4 py-1.5 rounded-xl text-xs transition-colors">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 pt-2">
+          <button className="flex-1 sm:flex-none border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-xl text-xs transition-colors text-center">
             Open &amp; Review
           </button>
-          <button className="bg-[#22C55E] hover:bg-emerald-600 text-white font-semibold px-4 py-1.5 rounded-xl text-xs transition-colors">
+          <button className="flex-1 sm:flex-none bg-[#22C55E] hover:bg-emerald-600 text-white font-semibold px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-xl text-xs transition-colors text-center">
             Accept
           </button>
-          <button className="border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold px-4 py-1.5 rounded-xl text-xs transition-colors">
+          <button className="w-full sm:w-auto border border-emerald-600 text-emerald-700 hover:bg-emerald-50 font-semibold px-3.5 sm:px-4 py-2 sm:py-1.5 rounded-xl text-xs transition-colors text-center">
             Request Update
           </button>
 
           <Link
             href={`/admin/cases/${doc.caseId}`}
-            className="text-xs font-bold text-[#1E3A8A] hover:underline ml-2"
+            className="text-xs font-bold text-[#1E3A8A] hover:underline py-1 sm:ml-auto block text-right w-full sm:w-auto"
           >
             Open Case &rarr;
           </Link>
@@ -219,11 +221,11 @@ export default function DocumentReviewPage() {
   };
 
   return (
-    <div className="p-8 max-w-7xl mx-auto w-full space-y-8">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 sm:space-y-8 min-w-0">
       {/* Page Title & Subtitle */}
       <div>
-        <h2 className="text-2xl font-bold text-[#1E3A8A]">Document Review</h2>
-        <p className="text-sm text-slate-500 mt-1">
+        <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A]">Document Review</h2>
+        <p className="text-xs sm:text-sm text-slate-500 mt-1">
           Review documents uploaded by patients across every case, and let them know if anything needs fixing.
         </p>
       </div>
