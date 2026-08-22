@@ -1,266 +1,286 @@
+'use client';
+
 import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { 
   Bell, 
   Plus, 
   Send, 
   Check, 
-  ChevronLeft, 
-  ChevronRight, 
-  LogOut, 
   ArrowRight 
 } from 'lucide-react';
 
+const steps = [
+  { number: 1, label: 'Consultation Submitted', href: '/dashboard' },
+  { number: 2, label: 'Case Review', href: '/dashboard/case-review' },
+  { number: 3, label: 'Hospital Recommendation', href: '/dashboard/recommendations' },
+  { number: 4, label: 'Medical Itinerary', href: '/dashboard/medical-itinerary' },
+  { number: 5, label: 'Accommodation & Visa', href: '/dashboard/accommodation' },
+  { number: 6, label: 'Travel Preparation', href: '/dashboard/travel-preparation' },
+  { number: 7, label: 'Treatment & Recovery', href: '/dashboard/treatment-recovery' },
+];
+
 export default function CaseReviewPage() {
-  const steps = [
-    { number: 1, title: "Consultation Submitted", completed: true },
-    { number: 2, title: "Case Review", active: true },
-    { number: 3, title: "Hospital Recommendation" },
-    { number: 4, title: "Medical Itinerary" },
-    { number: 5, title: "Accommodation & Visa" },
-    { number: 6, title: "Travel Preparation" },
-    { number: 7, title: "Treatment & Recovery" },
-  ];
+  const pathname = usePathname();
+
+  // Active step evaluation based on full route matching
+  const activeStep = steps.find((s) => s.href === pathname);
+  const currentStepNumber = activeStep ? activeStep.number : 2;
 
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-gray-800 flex flex-col justify-between">
-      <div>
-        {/* Top Header Navigation */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-[#1e293b]">My Healthcare Journey</h1>
-          
-          <div className="flex items-center space-x-6">
-            <a href="#" className="text-sm font-medium text-[#2563eb] hover:underline flex items-center">
-              &larr; Back to Website
-            </a>
-            
-            <div className="relative cursor-pointer">
-              <Bell className="w-5 h-5 text-gray-600 hover:text-gray-900" />
-              <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
-            </div>
-
-            <div className="w-9 h-9 bg-[#2e7d32] text-white rounded-full flex items-center justify-center font-bold text-sm">
+    <div className="flex-1 bg-slate-50/50 min-h-screen p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
+      
+      {/* Top Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-200/80 pb-4 sm:pb-5 gap-3 sm:gap-4">
+        <h1 className="text-lg sm:text-xl font-bold text-blue-900">
+          My Healthcare Journey
+        </h1>
+        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto">
+          <Link
+            href="/"
+            className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
+          >
+            ← Back to Website
+          </Link>
+          <div className="flex items-center gap-3">
+            <button className="p-2 text-gray-500 hover:text-gray-700 relative rounded-full hover:bg-slate-100 transition-colors">
+              <Bell className="w-5 h-5 text-gray-600" />
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
+            </button>
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs sm:text-sm shadow-sm shrink-0">
               A
             </div>
           </div>
-        </header>
-
-        {/* Main Content Area */}
-        <main className="max-w-6xl mx-auto px-6 py-8 space-y-6">
-          
-          {/* Greeting Section */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div>
-              <h1 className="text-3xl font-extrabold text-[#1a237e] tracking-tight">
-                Good to see you, Amara.
-              </h1>
-              <p className="text-sm text-gray-500 mt-1 font-medium">
-                Case HW-2026-531971 &middot; Last updated Today
-              </p>
-            </div>
-            
-            <button className="bg-[#2e7d32] hover:bg-[#256628] text-white font-medium px-4 py-2.5 rounded-lg flex items-center space-x-2 text-sm transition-colors shadow-sm self-start md:self-auto">
-              <div className="border border-white rounded-full p-0.5">
-                <Plus className="w-3.5 h-3.5" />
-              </div>
-              <span>New Consultation</span>
-            </button>
-          </div>
-
-          {/* Banner */}
-          <div className="bg-[#e8f5e9] border border-[#c8e6c9] rounded-xl p-4 flex items-center justify-between">
-            <div className="flex items-center space-x-3">
-              <Send className="w-5 h-5 text-[#2e7d32] transform -rotate-12" />
-              <p className="text-sm text-[#1b5e20] font-medium">
-                <span className="font-semibold">New: Flight Booking & Scheduling</span> &mdash; save up to 5% on all flights.
-              </p>
-            </div>
-            <a href="#" className="text-sm font-semibold text-[#1a237e] hover:underline flex items-center">
-              Learn more &rarr;
-            </a>
-          </div>
-
-          {/* Journey Steps Card */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h2 className="text-xs font-bold tracking-wider text-[#2563eb] uppercase mb-6">
-              Your Healthcare Journey
-            </h2>
-
-            {/* Stepper Grid */}
-            <div className="relative flex items-center justify-between px-4">
-              {/* Connecting Line */}
-              <div className="absolute top-4 left-10 right-10 h-0.5 bg-gray-200 -z-0" />
-
-              {steps.map((step) => (
-                <div key={step.number} className="relative z-10 flex flex-col items-center text-center max-w-[100px]">
-                  <div
-                    className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-semibold border-2 transition-colors ${
-                      step.completed
-                        ? 'bg-[#2e7d32] border-[#2e7d32] text-white'
-                        : step.active
-                        ? 'bg-white border-[#2e7d32] text-[#2e7d32]'
-                        : 'bg-white border-gray-300 text-gray-400'
-                    }`}
-                  >
-                    {step.completed ? <Check className="w-5 h-5 stroke-[3]" /> : step.number}
-                  </div>
-                  <span
-                    className={`text-xs mt-3 font-medium leading-tight ${
-                      step.active ? 'text-[#2e7d32] font-semibold' : 'text-gray-600'
-                    }`}
-                  >
-                    {step.title}
-                  </span>
-                </div>
-              ))}
-            </div>
-
-            {/* Scroll Indicator Bar */}
-            <div className="mt-8 flex items-center space-x-2 text-gray-400">
-              <ChevronLeft className="w-4 h-4 cursor-pointer hover:text-gray-600" />
-              <div className="flex-1 bg-gray-200 h-2 rounded-full overflow-hidden">
-                <div className="bg-gray-500 h-full w-[80%] rounded-full"></div>
-              </div>
-              <ChevronRight className="w-4 h-4 cursor-pointer hover:text-gray-600" />
-            </div>
-          </div>
-
-          {/* Status Box */}
-          <div className="bg-[#e8f5e9] border border-[#c8e6c9] rounded-xl p-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div>
-              <h3 className="text-lg font-bold text-[#1e293b]">Case Under Review</h3>
-              <p className="text-sm text-gray-600 mt-1">
-                Our team is reviewing your case. We'll notify you as soon as there's an update.
-              </p>
-            </div>
-            <button className="bg-[#2e7d32] hover:bg-[#256628] text-white font-semibold px-5 py-2.5 rounded-lg text-sm transition-colors whitespace-nowrap shadow-sm">
-              Message Coordinator
-            </button>
-          </div>
-
-          {/* Coordinator Feedback Box */}
-          <div className="bg-white border-l-4 border-l-[#2e7d32] border-y border-r border-gray-200 rounded-r-xl p-6 shadow-sm">
-            <h4 className="text-xs font-bold tracking-wider text-[#2563eb] uppercase mb-2">
-              Case Review From Your Coordinator
-            </h4>
-            <p className="text-sm font-medium text-gray-800 break-all">
-              edfgjkl;kjgfdrewqertyujk
-            </p>
-            <p className="text-xs text-gray-400 mt-3 font-medium">
-              Sarah James &middot; Just now
-            </p>
-          </div>
-
-          {/* Grid Layout: Care Coordinator & Case Summary */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            
-            {/* Assigned Care Coordinator */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-bold tracking-wider text-[#2563eb] uppercase mb-4">
-                  Assigned Care Coordinator
-                </h4>
-                <div className="flex items-center space-x-3 mb-4">
-                  <div className="w-10 h-10 bg-[#1a237e] text-white rounded-full flex items-center justify-center font-bold text-sm">
-                    S
-                  </div>
-                  <div>
-                    <h5 className="text-sm font-bold text-gray-900">Sarah James</h5>
-                    <p className="text-xs text-gray-500">Patient Care Coordinator</p>
-                  </div>
-                </div>
-                <p className="text-xs text-gray-500 mb-6">
-                  Available Monday&ndash;Friday, 9:00 AM&ndash;5:00 PM
-                </p>
-              </div>
-              <div>
-                <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-1.5 rounded-lg text-xs transition-colors">
-                  Send Message
-                </button>
-              </div>
-            </div>
-
-            {/* Case Summary */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-              <h4 className="text-xs font-bold tracking-wider text-[#2563eb] uppercase mb-4">
-                Case Summary
-              </h4>
-              <div className="space-y-2 text-xs">
-                <p><span className="font-semibold text-gray-700">Case ID:</span> <span className="text-gray-600">HW-2026-531971</span></p>
-                <p><span className="font-semibold text-gray-700">Healthcare Need:</span> <span className="text-gray-600">Not sure, I need guidance</span></p>
-                <p><span className="font-semibold text-gray-700">Stage:</span> <span className="text-gray-600">Case Review</span></p>
-                <p><span className="font-semibold text-gray-700">Started:</span> <span className="text-gray-600">Today</span></p>
-              </div>
-            </div>
-
-            {/* Recent Messages */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-bold tracking-wider text-[#2563eb] uppercase mb-4">
-                  Recent Messages
-                </h4>
-                <p className="text-xs text-gray-700 italic mb-3">
-                  &quot;Good question. Let me confirm the details with our clinical advisor and follow up within t...&quot;
-                </p>
-                <p className="text-xs text-gray-400 mb-4">
-                  Sarah James &middot; Just now
-                </p>
-              </div>
-              <a href="#" className="text-xs font-bold text-[#1a237e] hover:underline flex items-center space-x-1">
-                <span>Open Messages</span>
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </a>
-            </div>
-
-            {/* Documents */}
-            <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm flex flex-col justify-between">
-              <div>
-                <h4 className="text-xs font-bold tracking-wider text-[#2563eb] uppercase mb-4">
-                  Documents
-                </h4>
-                <p className="text-xs font-medium text-gray-800">1 document on file</p>
-                <p className="text-xs text-gray-500 mt-2 mb-4">0 under review</p>
-              </div>
-              <a href="#" className="text-xs font-bold text-[#1a237e] hover:underline flex items-center space-x-1">
-                <span>View Documents</span>
-                <ArrowRight className="w-3.5 h-3.5 ml-1" />
-              </a>
-            </div>
-          </div>
-
-          {/* Quick Actions */}
-          <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
-            <h4 className="text-xs font-bold tracking-wider text-[#2563eb] uppercase mb-4">
-              Quick Actions
-            </h4>
-            <div className="flex flex-wrap gap-3">
-              <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
-                Upload Document
-              </button>
-              <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
-                View Recommendations
-              </button>
-              <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
-                Billing & Payments
-              </button>
-              <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
-                Message Coordinator
-              </button>
-              <button className="border border-[#2e7d32] text-[#2e7d32] hover:bg-[#e8f5e9] font-medium px-4 py-2 rounded-lg text-xs transition-colors">
-                Start a New Consultation
-              </button>
-            </div>
-          </div>
-
-        </main>
+        </div>
       </div>
 
-      {/* Footer Log Out */}
-      <footer className="border-t border-gray-200 bg-white px-6 py-3 mt-12">
-        <button className="text-xs font-medium text-gray-600 hover:text-gray-900 flex items-center space-x-2">
-          <LogOut className="w-4 h-4 text-gray-500" />
-          <span>Log Out</span>
-        </button>
-      </footer>
+      {/* Greeting & Action Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 leading-tight">
+            Good to see you, Amara.
+          </h2>
+          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+            Case HW-2026-531971 · Last updated Today
+          </p>
+        </div>
+        <Link 
+          href="/dashboard/consultation/new"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors w-full sm:w-auto"
+        >
+          <Plus className="w-4 h-4" />
+          New Consultation
+        </Link>
+      </div>
+
+      {/* Promotional / Announcement Banner */}
+      <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start sm:items-center gap-3">
+          <Send className="w-4 h-4 text-emerald-600 rotate-45 flex-shrink-0 mt-0.5 sm:mt-0" />
+          <span className="text-xs sm:text-sm text-slate-800 font-medium leading-normal">
+            <strong className="font-semibold text-slate-900">New:</strong> Flight Booking & Scheduling — save up to 5% on all flights.
+          </span>
+        </div>
+        <Link
+          href="/dashboard/flights"
+          className="text-xs sm:text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors whitespace-nowrap self-end sm:self-auto"
+        >
+          Learn more →
+        </Link>
+      </div>
+
+      {/* Dynamic Journey Stepper Component */}
+      <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm space-y-6">
+        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+          YOUR HEALTHCARE JOURNEY
+        </span>
+
+        <div className="overflow-x-auto pb-4 pt-2 -mx-4 sm:mx-0 px-4 sm:px-0 touch-pan-x scrollbar-none">
+          <div className="min-w-[680px] sm:min-w-[700px] flex items-center justify-between relative px-4">
+            
+            {/* Background Line */}
+            <div className="absolute top-4 left-8 right-8 h-0.5 bg-gray-200 -z-0" />
+            
+            {/* Active Progress Line */}
+            <div 
+              className="absolute top-4 left-8 h-0.5 bg-emerald-600 -z-0 transition-all duration-300" 
+              style={{ width: `${((currentStepNumber - 1) / (steps.length - 1)) * 92}%` }}
+            />
+
+            {steps.map((step) => {
+              const isCompleted = step.number < currentStepNumber;
+              const isActive = step.number === currentStepNumber || step.href === pathname;
+
+              return (
+                <Link 
+                  key={step.number} 
+                  href={step.href}
+                  className="relative z-10 flex flex-col items-center max-w-[90px] sm:max-w-[100px] text-center space-y-2 group cursor-pointer"
+                >
+                  <div
+                    className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center font-bold text-xs border-2 transition-all ${
+                      isActive
+                        ? 'border-emerald-600 text-emerald-700 bg-white ring-4 ring-emerald-50'
+                        : isCompleted
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'border-gray-200 text-gray-400 bg-white group-hover:border-emerald-400 group-hover:text-emerald-600'
+                    }`}
+                  >
+                    {isCompleted && !isActive ? <Check className="w-3.5 h-3.5 sm:w-4 sm:h-4 stroke-[3]" /> : step.number}
+                  </div>
+                  <span
+                    className={`text-[10px] sm:text-[11px] font-semibold leading-tight transition-colors ${
+                      isActive
+                        ? 'text-emerald-700 font-bold' 
+                        : isCompleted
+                        ? 'text-slate-800 font-medium'
+                        : 'text-gray-500 group-hover:text-slate-900'
+                    }`}
+                  >
+                    {step.label}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {/* Case Status Notice Box */}
+      <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <h3 className="text-base font-bold text-blue-900">Case Under Review</h3>
+          <p className="text-xs sm:text-sm text-gray-600">
+            Our team is reviewing your case. We'll notify you as soon as there's an update.
+          </p>
+        </div>
+        <Link 
+          href="/dashboard/messages"
+          className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-sm transition-colors w-full sm:w-auto"
+        >
+          Message Coordinator
+        </Link>
+      </div>
+
+      {/* Coordinator Feedback Box */}
+      <div className="bg-white border-l-4 border-l-emerald-600 p-5 sm:p-6 rounded-r-2xl border border-gray-100 shadow-sm space-y-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+          CASE REVIEW FROM YOUR COORDINATOR
+        </span>
+        <p className="text-xs sm:text-sm text-slate-800 break-words leading-relaxed font-medium">
+          edfgjkl;kjgfdrewqertyujk
+        </p>
+        <p className="text-[11px] text-gray-400 font-medium pt-1">
+          Sarah James · Just now
+        </p>
+      </div>
+
+      {/* 2x2 Grid Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+        
+        {/* Assigned Care Coordinator Card */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5 flex flex-col justify-between">
+          <div className="space-y-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+              ASSIGNED CARE COORDINATOR
+            </span>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-sm shrink-0">
+                S
+              </div>
+              <div>
+                <h4 className="text-sm font-bold text-blue-900">Sarah James</h4>
+                <p className="text-xs text-gray-500">Patient Care Coordinator</p>
+              </div>
+            </div>
+            <p className="text-xs text-gray-500">Available Monday–Friday, 9:00 AM–5:00 PM</p>
+          </div>
+          <Link 
+            href="/dashboard/messages"
+            className="inline-block text-center px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors w-full sm:w-auto self-start"
+          >
+            Send Message
+          </Link>
+        </div>
+
+        {/* Case Summary Card */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5">
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+            CASE SUMMARY
+          </span>
+          <div className="space-y-2 text-xs text-gray-600">
+            <p><strong className="text-slate-800 font-semibold">Case ID:</strong> HW-2026-531971</p>
+            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
+            <p><strong className="text-slate-800 font-semibold">Stage:</strong> Case Review</p>
+            <p><strong className="text-slate-800 font-semibold">Started:</strong> Today</p>
+          </div>
+        </div>
+
+        {/* Recent Messages Card */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+              RECENT MESSAGES
+            </span>
+            <p className="text-xs text-gray-600 italic leading-relaxed">
+              &quot;Good question. Let me confirm the details with our clinical advisor and follow up within t...&quot;
+            </p>
+            <p className="text-[11px] text-gray-400">Sarah James · Just now</p>
+          </div>
+          <Link
+            href="/dashboard/messages"
+            className="text-xs font-bold text-blue-900 hover:text-blue-700 inline-flex items-center gap-1 transition-colors pt-2"
+          >
+            Open Messages <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+        {/* Documents Card */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+              DOCUMENTS
+            </span>
+            <div className="space-y-1 text-xs text-gray-600">
+              <p>1 document on file</p>
+              <p className="text-gray-400">0 under review</p>
+            </div>
+          </div>
+          <Link
+            href="/dashboard/documents"
+            className="text-xs font-bold text-blue-900 hover:text-blue-700 inline-flex items-center gap-1 transition-colors pt-2"
+          >
+            View Documents <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        </div>
+
+      </div>
+
+      {/* Quick Actions Row */}
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+          QUICK ACTIONS
+        </span>
+        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3">
+          <Link href="/dashboard/documents" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
+            Upload Document
+          </Link>
+          <Link href="/dashboard/recommendations" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
+            View Recommendations
+          </Link>
+          <Link href="/dashboard/billing" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
+            Billing & Payments
+          </Link>
+          <Link href="/dashboard/messages" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
+            Message Coordinator
+          </Link>
+          <Link href="/dashboard/consultation/new" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
+            Start a New Consultation
+          </Link>
+        </div>
+      </div>
+
     </div>
   );
 }
