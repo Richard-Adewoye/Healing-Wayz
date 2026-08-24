@@ -4,22 +4,55 @@ import React, { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { createClient } from '../utils/supabase/client';
 
 export default function PatientLoginForm() {
   const router = useRouter();
+  const supabase = createClient();
+
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle login submission logic
-    console.log('Login attempt with:', { identifier, password });
+    setLoading(true);
+    setErrorMessage(null);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: identifier,
+      password: password,
+    });
+
+    if (error) {
+      setErrorMessage(error.message);
+      setLoading(false);
+      return;
+    }
+
     router.push('/dashboard');
+    router.refresh();
   };
 
-  const handleDemoLogin = () => {
-    // Redirect directly to the dashboard journey page
+  const handleDemoLogin = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+
+    // Option A: If you created a demo account in Supabase
+    const { error } = await supabase.auth.signInWithPassword({
+      email: 'demo@healingways.com',
+      password: 'DemoPassword123!',
+    });
+
+    if (error) {
+      // Option B: Fallback redirect if no demo account exists in Supabase
+      router.push('/dashboard');
+      return;
+    }
+
     router.push('/dashboard');
+    router.refresh();
   };
 
   return (
@@ -42,6 +75,13 @@ export default function PatientLoginForm() {
           </p>
         </div>
 
+        {/* Error Alert Box */}
+        {errorMessage && (
+          <div className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-lg text-xs font-medium text-center">
+            {errorMessage}
+          </div>
+        )}
+
         {/* Login Form */}
         <form onSubmit={handleLogin} className="space-y-5">
           {/* Email or Phone Input */}
@@ -50,12 +90,13 @@ export default function PatientLoginForm() {
               Email or Phone
             </label>
             <input
-              type="text"
+              type="email"
               required
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
               placeholder="you@example.com"
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+              disabled={loading}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50"
             />
           </div>
 
@@ -70,16 +111,18 @@ export default function PatientLoginForm() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
-              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+              disabled={loading}
+              className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50"
             />
           </div>
 
           {/* Main Submit Button */}
           <button
             type="submit"
-            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-colors"
+            disabled={loading}
+            className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-colors disabled:opacity-50 flex justify-center items-center"
           >
-            Login
+            {loading ? 'Signing in...' : 'Login'}
           </button>
         </form>
 
@@ -100,7 +143,8 @@ export default function PatientLoginForm() {
           <button
             type="button"
             onClick={handleDemoLogin}
-            className="w-full py-3 bg-white hover:bg-emerald-50 border border-emerald-600 text-emerald-700 font-semibold text-sm rounded-lg transition-colors"
+            disabled={loading}
+            className="w-full py-3 bg-white hover:bg-emerald-50 border border-emerald-600 text-emerald-700 font-semibold text-sm rounded-lg transition-colors disabled:opacity-50"
           >
             Continue as Demo Patient
           </button>
@@ -110,7 +154,7 @@ export default function PatientLoginForm() {
         <div className="text-center text-xs text-gray-500 pt-2">
           New to HealingWays?{' '}
           <Link
-            href="/register"
+            href="/signup"
             className="font-bold text-blue-900 hover:underline transition-all"
           >
             Create an account
