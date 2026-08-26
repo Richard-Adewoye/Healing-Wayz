@@ -4,7 +4,6 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  Bell, 
   Plus, 
   Send, 
   Check, 
@@ -55,32 +54,8 @@ export default function MedicalItineraryPage() {
   const currentStepNumber = activeStep ? activeStep.number : 4;
 
   return (
-    <div className="flex-1 bg-slate-50/50 min-h-screen p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
+    <div className="space-y-6 sm:space-y-8">
       
-      {/* Top Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-200/80 pb-4 sm:pb-5 gap-3 sm:gap-4">
-        <h1 className="text-lg sm:text-xl font-bold text-blue-900">
-          {activeTab === 'journey' ? 'My Healthcare Journey' : 'Medical Itinerary'}
-        </h1>
-        <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 w-full sm:w-auto">
-          <Link
-            href="/"
-            className="text-xs sm:text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
-          >
-            ← Back to Website
-          </Link>
-          <div className="flex items-center gap-3">
-            <button className="p-2 text-gray-500 hover:text-gray-700 relative rounded-full hover:bg-slate-100 transition-colors">
-              <Bell className="w-5 h-5 text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
-            </button>
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs sm:text-sm shadow-sm shrink-0">
-              A
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* Greeting & Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -240,7 +215,7 @@ export default function MedicalItineraryPage() {
           CASE REVIEW FROM YOUR COORDINATOR
         </span>
         <p className="text-xs sm:text-sm text-slate-800 break-words leading-relaxed font-medium">
-          edfgjkl;kjgfdrewqertyujk
+          Your initial medical documents have been successfully reviewed. We are preparing the primary consultation schedule with our clinical team.
         </p>
         <p className="text-[11px] text-gray-400 font-medium pt-1">
           Sarah James · Just now
@@ -282,7 +257,7 @@ export default function MedicalItineraryPage() {
           </span>
           <div className="space-y-2 text-xs text-gray-600">
             <p><strong className="text-slate-800 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
+            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> Guidance & Consultation</p>
             <p><strong className="text-slate-800 font-semibold">Stage:</strong> Medical Itinerary</p>
             <p><strong className="text-slate-800 font-semibold">Started:</strong> Today</p>
           </div>

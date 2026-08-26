@@ -20,13 +20,23 @@ export default function PatientLoginForm() {
     setLoading(true);
     setErrorMessage(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email: identifier,
-      password: password,
-    });
+    const cleanIdentifier = identifier.trim();
+
+    // Detect if input is a phone number (no @ symbol, contains digits/plus)
+    const isPhone = /^[+\d\s-]+$/.test(cleanIdentifier) && !cleanIdentifier.includes('@');
+
+    const { error } = await supabase.auth.signInWithPassword(
+      isPhone
+        ? { phone: cleanIdentifier, password }
+        : { email: cleanIdentifier, password }
+    );
 
     if (error) {
-      setErrorMessage(error.message);
+      if (error.message.toLowerCase().includes('email not confirmed')) {
+        setErrorMessage('Email not confirmed yet. Please check your inbox or contact support.');
+      } else {
+        setErrorMessage(error.message);
+      }
       setLoading(false);
       return;
     }
@@ -39,14 +49,12 @@ export default function PatientLoginForm() {
     setLoading(true);
     setErrorMessage(null);
 
-    // Option A: If you created a demo account in Supabase
     const { error } = await supabase.auth.signInWithPassword({
       email: 'demo@healingways.com',
       password: 'DemoPassword123!',
     });
 
     if (error) {
-      // Option B: Fallback redirect if no demo account exists in Supabase
       router.push('/dashboard');
       return;
     }
@@ -90,11 +98,11 @@ export default function PatientLoginForm() {
               Email or Phone
             </label>
             <input
-              type="email"
+              type="text"
               required
               value={identifier}
               onChange={(e) => setIdentifier(e.target.value)}
-              placeholder="you@example.com"
+              placeholder="you@example.com or +1234567890"
               disabled={loading}
               className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all disabled:opacity-50"
             />

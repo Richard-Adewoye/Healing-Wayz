@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { createClient } from '../../utils/supabase/client';
 import { 
   Bell, 
   Plus, 
@@ -47,10 +48,93 @@ const itineraryEvents = [
   }
 ];
 
+interface CaseData {
+  caseId: string;
+  fullName: string;
+  supportType: string;
+  healthcareArea: string;
+  diagnosis: string;
+  documentCount: number;
+  submittedAt: string;
+}
+
 export default function JourneyDashboard() {
   const pathname = usePathname();
+  const [userName, setUserName] = useState<string>('');
+  const [loadingUser, setLoadingUser] = useState<boolean>(true);
+  const [caseDetails, setCaseDetails] = useState<CaseData | null>(null);
 
-  // Active step evaluation based on full route matching
+  useEffect(() => {
+    // Read local consultation data from onboarding submission
+    const storedCase = localStorage.getItem('activeConsultationCase');
+    if (storedCase) {
+      try {
+        const parsed = JSON.parse(storedCase);
+        setCaseDetails(parsed);
+        if (parsed.fullName) {
+          setUserName(parsed.fullName);
+        }
+      } catch (err) {
+        console.error('Failed to parse activeConsultationCase:', err);
+      }
+    }
+
+    const supabase = createClient();
+
+    async function loadUserProfile(userId: string, userMetadata: Record<string, any>, userEmail?: string) {
+      try {
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', userId)
+          .maybeSingle();
+
+        if (profileError) {
+          console.error('Error fetching profile row:', profileError);
+        }
+
+        const resolvedName = 
+          profile?.full_name || 
+          userMetadata?.full_name || 
+          userMetadata?.name || 
+          (userMetadata?.first_name ? `${userMetadata.first_name}` : null) ||
+          (userEmail ? userEmail.split('@')[0] : null);
+
+        if (resolvedName) {
+          setUserName(resolvedName);
+        }
+      } catch (err) {
+        console.error('Unexpected error loading profile:', err);
+      } finally {
+        setLoadingUser(false);
+      }
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        loadUserProfile(session.user.id, session.user.user_metadata || {}, session.user.email);
+      } else {
+        setLoadingUser(false);
+      }
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        loadUserProfile(session.user.id, session.user.user_metadata || {}, session.user.email);
+      } else {
+        setLoadingUser(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const cleanName = userName.trim();
+  const userInitial = cleanName ? cleanName.charAt(0).toUpperCase() : 'P';
+  const firstName = cleanName ? cleanName.split(' ')[0] : 'there';
+
   const activeStep = steps.find((s) => s.href === pathname);
   const currentStepNumber = activeStep ? activeStep.number : 1;
   const currentStageLabel = activeStep ? activeStep.label : 'Consultation Submitted';
@@ -76,8 +160,8 @@ export default function JourneyDashboard() {
               <Bell className="w-5 h-5 text-gray-600" />
               <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
             </button>
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs sm:text-sm shadow-sm shrink-0">
-              A
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs sm:text-sm shadow-sm shrink-0 uppercase">
+              {loadingUser && !userName ? '...' : userInitial}
             </div>
           </div>
         </div>
@@ -87,12 +171,15 @@ export default function JourneyDashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 leading-tight">
-            {isItineraryPage ? 'Your Medical Itinerary' : 'Good to see you, Amara.'}
+            {isItineraryPage 
+              ? 'Your Medical Itinerary' 
+              : `Good to see you, ${loadingUser && !userName ? '...' : firstName}.`
+            }
           </h2>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
             {isItineraryPage 
               ? 'Scheduled appointments and care steps prepared by Sarah James.'
-              : 'Case HW-2026-531971 · Last updated Today'
+              : `Case ${caseDetails?.caseId || 'HW-2026-531971'} · Last updated ${caseDetails?.submittedAt || 'Today'}`
             }
           </p>
         </div>
@@ -121,7 +208,7 @@ export default function JourneyDashboard() {
         </Link>
       </div>
 
-      {/* Dynamic Journey Stepper Component */}
+      {/* Dynamic Journey Stepper */}
       <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm space-y-6">
         <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
           YOUR HEALTHCARE JOURNEY
@@ -130,10 +217,7 @@ export default function JourneyDashboard() {
         <div className="overflow-x-auto pb-4 pt-2 -mx-4 sm:mx-0 px-4 sm:px-0 touch-pan-x scrollbar-none">
           <div className="min-w-[680px] sm:min-w-[700px] flex items-center justify-between relative px-4">
             
-            {/* Background Line */}
             <div className="absolute top-4 left-8 right-8 h-0.5 bg-gray-200 -z-0" />
-            
-            {/* Active Progress Line */}
             <div 
               className="absolute top-4 left-8 h-0.5 bg-emerald-600 -z-0 transition-all duration-300" 
               style={{ width: `${((currentStepNumber - 1) / (steps.length - 1)) * 92}%` }}
@@ -178,13 +262,13 @@ export default function JourneyDashboard() {
         </div>
       </div>
 
-      {/* Case Status Notice Box / Itinerary Schedule */}
+      {/* Notice / Itinerary Schedule */}
       {!isItineraryPage ? (
         <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <h3 className="text-base font-bold text-blue-900">Case Under Review</h3>
             <p className="text-xs sm:text-sm text-gray-600">
-              Our team is reviewing your case. We'll notify you as soon as there's an update.
+              Our team is reviewing your case. We&apos;ll notify you as soon as there&apos;s an update.
             </p>
           </div>
           <Link 
@@ -230,10 +314,10 @@ export default function JourneyDashboard() {
         </div>
       )}
 
-      {/* 2x2 Grid Section */}
+      {/* 2x2 Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         
-        {/* Assigned Care Coordinator Card */}
+        {/* Care Coordinator Card */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5 flex flex-col justify-between">
           <div className="space-y-4">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
@@ -258,16 +342,19 @@ export default function JourneyDashboard() {
           </Link>
         </div>
 
-        {/* Case Summary Card */}
+        {/* Dynamic Case Summary Card */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5">
           <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
             CASE SUMMARY
           </span>
           <div className="space-y-2 text-xs text-gray-600">
-            <p><strong className="text-slate-800 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
+            <p><strong className="text-slate-800 font-semibold">Case ID:</strong> {caseDetails?.caseId || 'HW-2026-531971'}</p>
+            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> {caseDetails?.supportType || 'Finding the right hospital or specialist'}</p>
+            {caseDetails?.healthcareArea && (
+              <p><strong className="text-slate-800 font-semibold">Specialty Area:</strong> {caseDetails.healthcareArea}</p>
+            )}
             <p><strong className="text-slate-800 font-semibold">Stage:</strong> {currentStageLabel}</p>
-            <p><strong className="text-slate-800 font-semibold">Started:</strong> Today</p>
+            <p><strong className="text-slate-800 font-semibold">Started:</strong> {caseDetails?.submittedAt || 'Today'}</p>
           </div>
         </div>
 
@@ -290,15 +377,15 @@ export default function JourneyDashboard() {
           </Link>
         </div>
 
-        {/* Documents Card */}
+        {/* Dynamic Documents Card */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
               DOCUMENTS
             </span>
             <div className="space-y-1 text-xs text-gray-600">
-              <p>1 document on file</p>
-              <p className="text-gray-400">0 under review</p>
+              <p>{caseDetails?.documentCount ?? 1} document(s) on file</p>
+              <p className="text-gray-400">Under review by clinical team</p>
             </div>
           </div>
           <Link

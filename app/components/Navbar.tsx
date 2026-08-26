@@ -58,7 +58,7 @@ export default function Navbar() {
               Patient Login
             </Link>
             <Link
-              href="#consultation"
+              href="/consultation"
               className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-full shadow-sm transition-colors"
             >
               Start Consultation
