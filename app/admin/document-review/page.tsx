@@ -1,8 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { FileText, Image as ImageIcon, Lightbulb } from 'lucide-react';
+import { FileText, Image as ImageIcon, Lightbulb, Loader2 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 
 interface DocumentItem {
   id: string;
@@ -17,144 +18,117 @@ interface DocumentItem {
   statusText: string;
   note?: string;
   feedback?: string;
+  filePath: string;
 }
 
-const pendingDocuments: DocumentItem[] = [
-  {
-    id: '1',
-    filename: '2025_Day_1_Rewrite_v1_IntroductionToAgents.pdf',
-    type: 'pdf',
-    patientName: 'Amara Chukwu',
-    caseId: 'HW-2026-150088',
-    category: 'Medical Reports',
-    date: 'Today',
-    status: 'Uploaded',
-    statusBg: 'bg-slate-100',
-    statusText: 'text-slate-700',
-    note: 'das',
-  },
-  {
-    id: '2',
-    filename: 'Cardiac_MRI_Report.pdf',
-    type: 'pdf',
-    patientName: 'Amara Chukwu',
-    caseId: 'HW-2026-000145',
-    category: 'Medical Reports',
-    date: '13 Jul 2026',
-    status: 'Under Review',
-    statusBg: 'bg-emerald-100/70',
-    statusText: 'text-emerald-800',
-  },
-  {
-    id: '3',
-    filename: 'Biopsy_Results.pdf',
-    type: 'pdf',
-    patientName: 'Fatima Al-Sayed',
-    caseId: 'HW-2026-000901',
-    category: 'Medical Reports',
-    date: '23 Jul 2026',
-    status: 'Uploaded',
-    statusBg: 'bg-slate-100',
-    statusText: 'text-slate-700',
-  },
-  {
-    id: '4',
-    filename: 'ER_Discharge_Summary.pdf',
-    type: 'pdf',
-    patientName: 'Adaeze Nwosu',
-    caseId: 'HW-2026-001002',
-    category: 'Medical Reports',
-    date: '25 Jul 2026',
-    status: 'Uploaded',
-    statusBg: 'bg-slate-100',
-    statusText: 'text-slate-700',
-  },
-];
-
-const resolvedDocuments: DocumentItem[] = [
-  {
-    id: '5',
-    filename: 'HealthCare Journey 2.PNG',
-    type: 'image',
-    patientName: 'Amara Chukwu',
-    caseId: 'HW-2026-531971',
-    category: 'Medical Reports',
-    date: 'Today',
-    status: 'Accepted',
-    statusBg: 'bg-emerald-100/70',
-    statusText: 'text-emerald-800',
-  },
-  {
-    id: '6',
-    filename: 'Passport_Copy.pdf',
-    type: 'pdf',
-    patientName: 'Amara Chukwu',
-    caseId: 'HW-2026-000145',
-    category: 'Identification',
-    date: '12 Jul 2026',
-    status: 'Accepted',
-    statusBg: 'bg-emerald-100/70',
-    statusText: 'text-emerald-800',
-  },
-  {
-    id: '7',
-    filename: 'Blood_Work_Panel.pdf',
-    type: 'pdf',
-    patientName: 'Fatima Al-Sayed',
-    caseId: 'HW-2026-000901',
-    category: 'Medical Reports',
-    date: '10 Jul 2026',
-    status: 'Update Requested',
-    statusBg: 'bg-amber-100/70',
-    statusText: 'text-amber-800',
-    feedback: 'These results are over 6 months old — please upload a more recent panel.',
-  },
-  {
-    id: '8',
-    filename: 'Prenatal_Records.pdf',
-    type: 'pdf',
-    patientName: 'Yusuf Mohammed',
-    caseId: 'HW-2026-000978',
-    category: 'Medical Reports',
-    date: '16 Jul 2026',
-    status: 'Accepted',
-    statusBg: 'bg-emerald-100/70',
-    statusText: 'text-emerald-800',
-  },
-  {
-    id: '9',
-    filename: 'Passport_Copy.pdf',
-    type: 'pdf',
-    patientName: 'Yusuf Mohammed',
-    caseId: 'HW-2026-000978',
-    category: 'Identification',
-    date: '15 Jul 2026',
-    status: 'Accepted',
-    statusBg: 'bg-emerald-100/70',
-    statusText: 'text-emerald-800',
-  },
-  {
-    id: '10',
-    filename: 'Referral_Letter.pdf',
-    type: 'pdf',
-    patientName: 'Yusuf Mohammed',
-    caseId: 'HW-2026-000978',
-    category: 'Medical Reports',
-    date: '17 Jul 2026',
-    status: 'Accepted',
-    statusBg: 'bg-emerald-100/70',
-    statusText: 'text-emerald-800',
-  },
-];
-
 export default function DocumentReviewPage() {
+  const supabase = createClient();
+
+  const [pendingDocs, setPendingDocs] = useState<DocumentItem[]>([]);
+  const [resolvedDocs, setResolvedDocs] = useState<DocumentItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Format creation timestamp
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+
+    if (isToday) return 'Today';
+    return date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+    });
+  };
+
+  // Detect file type from mime_type or file extension
+  const getFileType = (mimeType?: string, fileName?: string): 'pdf' | 'image' => {
+    if (mimeType?.startsWith('image/')) return 'image';
+    if (fileName && /\.(jpg|jpeg|png|gif|webp)$/i.test(fileName)) return 'image';
+    return 'pdf';
+  };
+
+  // Fetch documents from Supabase
+  const fetchDocuments = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('documents')
+        .select(`
+          id,
+          user_id,
+          case_id,
+          name,
+          file_path,
+          file_size,
+          mime_type,
+          created_at,
+          profiles!user_id (
+            full_name
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching documents for review:', error.message);
+        return;
+      }
+
+      if (data) {
+        const pending: DocumentItem[] = [];
+        const resolved: DocumentItem[] = [];
+
+        data.forEach((doc: any) => {
+          const fileType = getFileType(doc.mime_type, doc.name);
+          const patientName = doc.profiles?.full_name || 'Unknown Patient';
+          const caseId = doc.case_id || `CASE-${doc.id.slice(0, 8).toUpperCase()}`;
+
+          // Map document into item format (Defaults to 'Uploaded' / Pending state)
+          const item: DocumentItem = {
+            id: doc.id,
+            filename: doc.name || 'Untitled Document',
+            type: fileType,
+            patientName,
+            caseId,
+            category: 'Medical Reports',
+            date: formatDate(doc.created_at),
+            status: 'Uploaded',
+            statusBg: 'bg-slate-100',
+            statusText: 'text-slate-700',
+            filePath: doc.file_path,
+          };
+
+          // Group into Pending vs Resolved sections
+          if (item.status === 'Uploaded' || item.status === 'Under Review') {
+            pending.push(item);
+          } else {
+            resolved.push(item);
+          }
+        });
+
+        setPendingDocs(pending);
+        setResolvedDocs(resolved);
+      }
+    } catch (err) {
+      console.error('Unexpected error loading documents:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchDocuments();
+  }, [fetchDocuments]);
+
   const renderDocumentCard = (doc: DocumentItem) => {
     const FileIcon = doc.type === 'image' ? ImageIcon : FileText;
 
     return (
       <div
         key={doc.id}
-        className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-sm space-y-4 min-w-0"
+        className="bg-white border border-slate-200 rounded-2xl p-4 sm:p-6 shadow-xs space-y-4 min-w-0"
       >
         {/* Header Row */}
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
@@ -190,7 +164,7 @@ export default function DocumentReviewPage() {
           </div>
         </div>
 
-        {/* Feedback block (for update requested items) */}
+        {/* Feedback block */}
         {doc.feedback && (
           <p className="text-xs italic text-slate-500 pl-2 border-l-2 border-slate-200">
             Feedback sent: &quot;{doc.feedback}&quot;
@@ -221,7 +195,7 @@ export default function DocumentReviewPage() {
   };
 
   return (
-    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 sm:space-y-8 min-w-0">
+    <div className="p-4 sm:p-6 md:p-8 max-w-7xl mx-auto w-full space-y-6 sm:space-y-8 min-w-0 font-sans">
       {/* Page Title & Subtitle */}
       <div>
         <h2 className="text-xl sm:text-2xl font-bold text-[#1E3A8A]">Document Review</h2>
@@ -230,20 +204,37 @@ export default function DocumentReviewPage() {
         </p>
       </div>
 
-      {/* Pending Reviews Section */}
-      <div className="space-y-4">
-        {pendingDocuments.map((doc) => renderDocumentCard(doc))}
-      </div>
-
-      {/* Recently Resolved Section */}
-      <div className="space-y-4 pt-4">
-        <h3 className="text-xs font-bold tracking-wider text-blue-600 uppercase">
-          RECENTLY RESOLVED
-        </h3>
-        <div className="space-y-4">
-          {resolvedDocuments.map((doc) => renderDocumentCard(doc))}
+      {loading ? (
+        <div className="flex items-center justify-center p-12 w-full bg-white border border-slate-200 rounded-2xl">
+          <Loader2 className="w-6 h-6 text-blue-600 animate-spin mr-2" />
+          <span className="text-sm text-slate-500">Loading documents...</span>
         </div>
-      </div>
+      ) : (
+        <>
+          {/* Pending Reviews Section */}
+          <div className="space-y-4">
+            {pendingDocs.length === 0 ? (
+              <div className="p-8 text-center text-xs text-slate-400 bg-white border border-slate-200 rounded-2xl">
+                No pending documents to review.
+              </div>
+            ) : (
+              pendingDocs.map((doc) => renderDocumentCard(doc))
+            )}
+          </div>
+
+          {/* Recently Resolved Section */}
+          {resolvedDocs.length > 0 && (
+            <div className="space-y-4 pt-4">
+              <h3 className="text-xs font-bold tracking-wider text-blue-600 uppercase">
+                RECENTLY RESOLVED
+              </h3>
+              <div className="space-y-4">
+                {resolvedDocs.map((doc) => renderDocumentCard(doc))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

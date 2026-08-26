@@ -1,184 +1,341 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { 
-  Plus, 
-  Send, 
-  ArrowRight 
+  ArrowRight, 
+  FileText, 
+  MessageSquare, 
+  Clock, 
+  AlertCircle,
+  Loader2,
+  Upload,
+  CheckCircle2
 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 
-export default function CaseReviewPage() {
+interface PatientCaseDetails {
+  id: string;
+  caseId: string;
+  stage: string;
+  healthcareNeed: string;
+  coordinatorName: string;
+  coordinatorRole: string;
+  lastUpdated: string;
+  createdAt: string;
+  latestNote: string;
+  documentCount: number;
+}
+
+interface SupabaseCaseResponse {
+  id: string;
+  case_number?: string;
+  stage?: string;
+  healthcare_need?: string;
+  created_at?: string;
+  updated_at?: string;
+  user_id: string;
+  coordinator_id?: string;
+}
+
+const STAGES = [
+  'New Lead',
+  'Case Review',
+  'Recommendation Ready',
+  'Treatment Scheduled',
+  'Completed'
+];
+
+export default function PatientCaseReviewPage() {
+  const supabase = createClient();
+
+  const [caseDetails, setCaseDetails] = useState<PatientCaseDetails | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real case data for logged-in patient
+  const fetchCaseDetails = useCallback(async () => {
+    setLoading(true);
+    try {
+      // Get logged-in user
+      const { data: { user } } = await supabase.auth.getUser();
+
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('cases')
+        .select(`
+          id,
+          case_number,
+          stage,
+          healthcare_need,
+          created_at,
+          updated_at,
+          user_id,
+          coordinator_id
+        `)
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        console.error('Error fetching case:', error.message);
+      }
+
+      const caseData = data as SupabaseCaseResponse | null;
+
+      if (caseData) {
+        // Fetch document statistics for this patient
+        const { count: totalDocs } = await supabase
+          .from('documents')
+          .select('*', { count: 'exact', head: true })
+          .eq('user_id', user.id);
+
+        const formattedCase: PatientCaseDetails = {
+          id: caseData.id,
+          caseId: caseData.case_number || `HW-2026-${caseData.id.slice(0, 6).toUpperCase()}`,
+          stage: caseData.stage || 'Case Review',
+          healthcareNeed: caseData.healthcare_need || 'Orthopedic Consultation',
+          coordinatorName: 'Sarah James',
+          coordinatorRole: 'Patient Care Coordinator',
+          lastUpdated: new Date(caseData.updated_at || Date.now()).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          }),
+          createdAt: new Date(caseData.created_at || Date.now()).toLocaleDateString('en-GB', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          }),
+          latestNote: 'Your medical records have been received and are under active review by our clinical team. We will update you here shortly.',
+          documentCount: totalDocs || 0
+        };
+
+        setCaseDetails(formattedCase);
+      } else {
+        // Fallback state if case record isn't initialized yet
+        setCaseDetails({
+          id: 'demo-123',
+          caseId: 'HW-2026-531971',
+          stage: 'Case Review',
+          healthcareNeed: 'Orthopedic Guidance',
+          coordinatorName: 'Sarah James',
+          coordinatorRole: 'Patient Care Coordinator',
+          lastUpdated: 'Today',
+          createdAt: '24 Aug 2026',
+          latestNote: 'Your medical records have been received and are under active review by our clinical team.',
+          documentCount: 0
+        });
+      }
+    } catch (err) {
+      console.error('Unexpected error loading patient case review:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchCaseDetails();
+  }, [fetchCaseDetails]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12 min-h-[400px]">
+        <Loader2 className="w-6 h-6 text-blue-900 animate-spin mr-2" />
+        <span className="text-sm font-medium text-slate-600">Loading your case details...</span>
+      </div>
+    );
+  }
+
+  const currentStageIndex = STAGES.indexOf(caseDetails?.stage || 'Case Review');
+
   return (
-    <div className="p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
+    <div className="p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full font-sans">
       
-      {/* Greeting & Action Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Patient Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 pb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 leading-tight">
-            Good to see you, Amara.
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-md">
+              Under Review
+            </span>
+            <span className="text-xs text-slate-500">
+              Last Updated {caseDetails?.lastUpdated}
+            </span>
+          </div>
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 mt-2 leading-tight">
+            Your Medical Case Overview
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            Case HW-2026-531971 · Last updated Today
+          <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+            Reference ID: {caseDetails?.caseId}
           </p>
         </div>
-        <Link 
-          href="/dashboard/consultation/new"
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors w-full sm:w-auto"
-        >
-          <Plus className="w-4 h-4" />
-          New Consultation
-        </Link>
-      </div>
 
-      {/* Promotional Banner */}
-      <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-start sm:items-center gap-3">
-          <Send className="w-4 h-4 text-emerald-600 rotate-45 flex-shrink-0 mt-0.5 sm:mt-0" />
-          <span className="text-xs sm:text-sm text-slate-800 font-medium leading-normal">
-            <strong className="font-semibold text-slate-900">New:</strong> Flight Booking & Scheduling — save up to 5% on all flights.
-          </span>
+        {/* Action Button */}
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/documents"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-900 hover:bg-blue-800 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-colors"
+          >
+            <Upload className="w-4 h-4" />
+            Upload New Documents
+          </Link>
         </div>
-        <Link
-          href="/dashboard/flights"
-          className="text-xs sm:text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors whitespace-nowrap self-end sm:self-auto"
-        >
-          Learn more →
-        </Link>
       </div>
 
-      {/* Case Status Notice Box */}
-      <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h3 className="text-base font-bold text-blue-900">Case Under Review</h3>
-          <p className="text-xs sm:text-sm text-gray-600">
-            Our team is reviewing your case. We'll notify you as soon as there's an update.
-          </p>
-        </div>
-        <Link 
-          href="/dashboard/messages"
-          className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-sm transition-colors w-full sm:w-auto"
-        >
-          Message Coordinator
-        </Link>
-      </div>
-
-      {/* Coordinator Feedback Box */}
-      <div className="bg-white border-l-4 border-l-emerald-600 p-5 sm:p-6 rounded-r-2xl border border-gray-100 shadow-sm space-y-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-          CASE REVIEW FROM YOUR COORDINATOR
+      {/* Visual Case Progress Tracker */}
+      <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
+        <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
+          CASE PROGRESS
         </span>
-        <p className="text-xs sm:text-sm text-slate-800 break-words leading-relaxed font-medium">
-          Your medical records have been received and are currently under secondary review with the orthopedic department.
-        </p>
-        <p className="text-[11px] text-gray-400 font-medium pt-1">
-          Sarah James · Just now
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
+          {STAGES.map((stageName, index) => {
+            const isCompleted = index < currentStageIndex;
+            const isCurrent = index === currentStageIndex;
+
+            return (
+              <div 
+                key={stageName}
+                className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
+                  isCurrent 
+                    ? 'bg-blue-50 border-blue-900 text-blue-900' 
+                    : isCompleted 
+                    ? 'bg-slate-50 border-emerald-300 text-emerald-800' 
+                    : 'bg-slate-50 border-slate-200 text-slate-400'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase">Step 0{index + 1}</span>
+                  {isCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
+                  {isCurrent && <Clock className="w-4 h-4 text-blue-900 animate-pulse" />}
+                </div>
+                <p className="text-xs font-bold leading-snug">{stageName}</p>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Case Overview Alert Box */}
+      <div className="p-5 sm:p-6 bg-amber-50/60 border border-amber-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+            <h3 className="text-base font-bold text-amber-900">Awaiting Care Team Review</h3>
+          </div>
+          <p className="text-xs sm:text-sm text-slate-700">
+            Our medical coordinators are evaluating your submitted records. You will receive a notification as soon as your recommendation plan is ready.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0">
+          <Link 
+            href="/dashboard/messages"
+            className="inline-flex items-center justify-center px-4 py-2 bg-blue-900 hover:bg-blue-800 text-white font-semibold text-xs rounded-lg shadow-xs transition-colors w-full sm:w-auto text-center"
+          >
+            <MessageSquare className="w-3.5 h-3.5 mr-1.5" /> Contact Coordinator
+          </Link>
+        </div>
+      </div>
+
+      {/* Coordinator Note Display Block */}
+      <div className="bg-white border-l-4 border-l-blue-900 p-5 sm:p-6 rounded-r-2xl border border-slate-200 shadow-xs space-y-2">
+        <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
+          LATEST UPDATE FROM YOUR CARE COORDINATOR
+        </span>
+        <p className="text-xs sm:text-sm text-slate-800 leading-relaxed font-medium bg-slate-50 p-4 rounded-xl border border-slate-100">
+          &quot;{caseDetails?.latestNote}&quot;
         </p>
       </div>
 
-      {/* 2x2 Grid Section */}
+      {/* Grid Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         
         {/* Assigned Care Coordinator Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5 flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-              ASSIGNED CARE COORDINATOR
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
+              YOUR CARE COORDINATOR
             </span>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 pt-1">
               <div className="w-10 h-10 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-sm shrink-0">
-                S
+                {caseDetails?.coordinatorName.charAt(0)}
               </div>
               <div>
-                <h4 className="text-sm font-bold text-blue-900">Sarah James</h4>
-                <p className="text-xs text-gray-500">Patient Care Coordinator</p>
+                <h4 className="text-sm font-bold text-blue-900">{caseDetails?.coordinatorName}</h4>
+                <p className="text-xs text-slate-500">{caseDetails?.coordinatorRole}</p>
               </div>
             </div>
-            <p className="text-xs text-gray-500">Available Monday–Friday, 9:00 AM–5:00 PM</p>
+            <p className="text-xs text-slate-500 flex items-center gap-1.5">
+              <Clock className="w-3.5 h-3.5 text-slate-400" /> Assigned on {caseDetails?.createdAt}
+            </p>
           </div>
           <Link 
             href="/dashboard/messages"
-            className="inline-block text-center px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors w-full sm:w-auto self-start"
+            className="inline-block text-center px-4 py-2 border border-slate-300 text-slate-700 font-semibold text-xs rounded-lg hover:bg-slate-50 transition-colors w-full sm:w-auto self-start"
           >
             Send Message
           </Link>
         </div>
 
         {/* Case Summary Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-            CASE SUMMARY
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
+            CASE DETAILS SUMMARY
           </span>
-          <div className="space-y-2 text-xs text-gray-600">
-            <p><strong className="text-slate-800 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
-            <p><strong className="text-slate-800 font-semibold">Stage:</strong> Case Review</p>
-            <p><strong className="text-slate-800 font-semibold">Started:</strong> Today</p>
+          <div className="space-y-2.5 text-xs text-slate-600 pt-1">
+            <p><strong className="text-slate-900 font-semibold">Reference Number:</strong> {caseDetails?.caseId}</p>
+            <p><strong className="text-slate-900 font-semibold">Healthcare Service:</strong> {caseDetails?.healthcareNeed}</p>
+            <p><strong className="text-slate-900 font-semibold">Current Phase:</strong> {caseDetails?.stage}</p>
+            <p><strong className="text-slate-900 font-semibold">Case Initiated:</strong> {caseDetails?.createdAt}</p>
           </div>
         </div>
 
-        {/* Recent Messages Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
+        {/* Patient Documents Card */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-              RECENT MESSAGES
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
+              SUBMITTED DOCUMENTS
             </span>
-            <p className="text-xs text-gray-600 italic leading-relaxed">
-              &quot;Good question. Let me confirm the details with our clinical advisor and follow up within t...&quot;
-            </p>
-            <p className="text-[11px] text-gray-400">Sarah James · Just now</p>
-          </div>
-          <Link
-            href="/dashboard/messages"
-            className="text-xs font-bold text-blue-900 hover:text-blue-700 inline-flex items-center gap-1 transition-colors pt-2"
-          >
-            Open Messages <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
-        </div>
-
-        {/* Documents Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
-          <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-              DOCUMENTS
-            </span>
-            <div className="space-y-1 text-xs text-gray-600">
-              <p>1 document on file</p>
-              <p className="text-gray-400">0 under review</p>
+            <div className="space-y-1 text-xs text-slate-600 pt-1">
+              <p className="font-semibold text-slate-900 flex items-center gap-2">
+                <FileText className="w-4 h-4 text-blue-900" />
+                {caseDetails?.documentCount} Medical Files Uploaded
+              </p>
+              <p className="text-slate-500 pl-6">
+                All uploaded scans and files are secured and encrypted.
+              </p>
             </div>
           </div>
           <Link
             href="/dashboard/documents"
             className="text-xs font-bold text-blue-900 hover:text-blue-700 inline-flex items-center gap-1 transition-colors pt-2"
           >
-            View Documents <ArrowRight className="w-3.5 h-3.5" />
+            View Your Uploaded Files <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
 
-      </div>
-
-      {/* Quick Actions Row */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-          QUICK ACTIONS
-        </span>
-        <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3">
-          <Link href="/dashboard/documents" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
-            Upload Document
-          </Link>
-          <Link href="/dashboard/recommendations" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
-            View Recommendations
-          </Link>
-          <Link href="/dashboard/billing" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
-            Billing & Payments
-          </Link>
-          <Link href="/dashboard/messages" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
-            Message Coordinator
-          </Link>
-          <Link href="/dashboard/consultation/new" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
-            Start a New Consultation
+        {/* Quick Links / Help Card */}
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+          <div className="space-y-4">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
+              NEED HELP OR HAVE QUESTIONS?
+            </span>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              If you have additional medical records, imaging, or questions about treatment options, feel free to upload them or reach out directly to your care coordinator.
+            </p>
+          </div>
+          <Link
+            href="/dashboard/messages"
+            className="text-xs font-bold text-blue-900 hover:text-blue-700 inline-flex items-center gap-1 transition-colors pt-2"
+          >
+            Go to Message Center <ArrowRight className="w-3.5 h-3.5" />
           </Link>
         </div>
+
       </div>
 
     </div>
