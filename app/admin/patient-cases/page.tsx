@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { Search, Calendar } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Search, Calendar, Loader2 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client'; // Adjust path to your browser client
 
 interface PatientCase {
   id: string;
@@ -14,136 +15,95 @@ interface PatientCase {
   priority: 'Normal' | 'Urgent';
   coordinator: string;
   updated: string;
+  rawCreatedAt: string;
 }
-
-const patientCasesData: PatientCase[] = [
-  {
-    id: '1',
-    patientName: 'Amara Chukwu',
-    caseId: 'HW-2026-531971',
-    need: 'Not sure, I need guidance',
-    stage: 'Case Closed',
-    status: 'New',
-    priority: 'Normal',
-    coordinator: 'Sarah James',
-    updated: 'Just now',
-  },
-  {
-    id: '2',
-    patientName: 'Amara Chukwu',
-    caseId: 'HW-2026-150088',
-    need: 'Visa support',
-    stage: 'Consultation Submitted',
-    status: 'New',
-    priority: 'Normal',
-    coordinator: 'Sarah James',
-    updated: 'Just now',
-  },
-  {
-    id: '3',
-    patientName: 'Amara Chukwu',
-    hasNotificationDot: true,
-    caseId: 'HW-2026-000145',
-    need: 'Cardiology',
-    stage: 'Hospital Recommendation',
-    status: 'Active',
-    priority: 'Normal',
-    coordinator: 'Sarah James',
-    updated: '2 hours ago',
-  },
-  {
-    id: '4',
-    patientName: 'Kwame Owusu',
-    caseId: 'HW-2026-000812',
-    need: 'Orthopedics',
-    stage: 'Case Closed',
-    status: 'Closed',
-    priority: 'Normal',
-    coordinator: 'Daniel Okoro',
-    updated: '6 months ago',
-  },
-  {
-    id: '5',
-    patientName: 'Fatima Al-Sayed',
-    hasNotificationDot: true,
-    caseId: 'HW-2026-000901',
-    need: 'Oncology',
-    stage: 'Case Review',
-    status: 'Active',
-    priority: 'Urgent',
-    coordinator: 'Sarah James',
-    updated: '3 hours ago',
-  },
-  {
-    id: '6',
-    patientName: 'Chidinma Adeyemi',
-    hasNotificationDot: true,
-    caseId: 'HW-2026-000934',
-    need: 'Fertility',
-    stage: 'Consultation Submitted',
-    status: 'New',
-    priority: 'Normal',
-    coordinator: 'Unassigned',
-    updated: '1 hour ago',
-  },
-  {
-    id: '7',
-    patientName: 'Ibrahim Diallo',
-    caseId: 'HW-2026-000887',
-    need: 'Neurology',
-    stage: 'Accommodation & Visa',
-    status: 'Active',
-    priority: 'Normal',
-    coordinator: 'Daniel Okoro',
-    updated: 'Yesterday',
-  },
-  {
-    id: '8',
-    patientName: 'Grace Mensah',
-    caseId: 'HW-2026-000956',
-    need: 'General Surgery',
-    stage: 'Hospital Recommendation',
-    status: 'Awaiting Info',
-    priority: 'Normal',
-    coordinator: 'Sarah James',
-    updated: '4 days ago',
-  },
-  {
-    id: '9',
-    patientName: 'Yusuf Mohammed',
-    caseId: 'HW-2026-000978',
-    need: 'Maternal Health',
-    stage: 'Medical Itinerary',
-    status: 'Active',
-    priority: 'Normal',
-    coordinator: 'Daniel Okoro',
-    updated: '3 days ago',
-  },
-  {
-    id: '10',
-    patientName: 'Adaeze Nwosu',
-    hasNotificationDot: true,
-    caseId: 'HW-2026-001002',
-    need: 'Cardiology',
-    stage: 'Consultation Submitted',
-    status: 'New',
-    priority: 'Urgent',
-    coordinator: 'Unassigned',
-    updated: '20 minutes ago',
-  },
-];
 
 type StatusFilter = 'All' | 'New' | 'Active' | 'Awaiting Info' | 'Closed';
 
 export default function PatientCasesPage() {
+  const supabase = createClient();
+
+  const [cases, setCases] = useState<PatientCase[]>([]);
+  const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
-  const filteredCases = patientCasesData.filter((item) => {
+  // Helper to format timestamps into relative or clean strings
+  const formatUpdatedTime = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diffInMs = now.getTime() - date.getTime();
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hours ago`;
+    if (diffInHours < 48) return 'Yesterday';
+    return date.toLocaleDateString();
+  };
+
+  // Fetch Cases from Supabase
+  const fetchCases = useCallback(async () => {
+    setLoading(true);
+
+    try {
+      // Query 'documents' table explicitly referencing user_id relationship on 'profiles'
+      const { data, error } = await supabase
+        .from('documents')
+        .select(`
+          id,
+          user_id,
+          case_id,
+          name,
+          file_path,
+          file_size,
+          mime_type,
+          created_at,
+          profiles!user_id (
+            full_name
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('Error fetching patient cases:', error.message);
+        return;
+      }
+
+      if (data) {
+        const mappedCases: PatientCase[] = data.map((doc: any) => ({
+          id: doc.id,
+          patientName: doc.profiles?.full_name || 'Unknown Patient',
+          caseId: doc.case_id || `CASE-${doc.id.slice(0, 8).toUpperCase()}`,
+          need: doc.name || 'General Guidance',
+          stage: 'Document Uploaded',
+          status: 'New',
+          priority: 'Normal',
+          coordinator: 'Unassigned',
+          updated: formatUpdatedTime(doc.created_at),
+          rawCreatedAt: doc.created_at,
+          hasNotificationDot: true,
+        }));
+
+        setCases(mappedCases);
+      }
+    } catch (err) {
+      console.error('Unexpected error loading cases:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchCases();
+  }, [fetchCases]);
+
+  // Filtering Logic
+  const filteredCases = cases.filter((item) => {
     const matchesFilter =
       selectedFilter === 'All' || item.status === selectedFilter;
+
     const matchesSearch =
       item.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.caseId.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -198,7 +158,7 @@ export default function PatientCasesPage() {
       <div>
         <h1 className="text-2xl font-bold text-[#1E3A8A] mb-1">Patient Cases</h1>
         <p className="text-slate-500 text-sm">
-          {patientCasesData.length} total cases across your team.
+          {cases.length} total cases across your team.
         </p>
       </div>
 
@@ -262,59 +222,70 @@ export default function PatientCasesPage() {
       {/* Cases Table */}
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="py-3.5 px-6">Patient</th>
-                <th className="py-3.5 px-4">Case ID</th>
-                <th className="py-3.5 px-4">Need</th>
-                <th className="py-3.5 px-4">Stage</th>
-                <th className="py-3.5 px-4 text-center">Status</th>
-                <th className="py-3.5 px-4 text-center">Priority</th>
-                <th className="py-3.5 px-4">Coordinator</th>
-                <th className="py-3.5 px-6">Updated</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-sm">
-              {filteredCases.map((c) => (
-                <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
-                  <td className="py-4 px-6 font-bold text-slate-800 whitespace-nowrap">
-                    <div className="inline-flex items-center gap-1.5">
-                      <span>{c.patientName}</span>
-                      {c.hasNotificationDot && (
-                        <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
-                      )}
-                    </div>
-                  </td>
-                  <td className="py-4 px-4 text-xs font-medium text-slate-500 whitespace-nowrap">
-                    {c.caseId}
-                  </td>
-                  <td className="py-4 px-4 text-slate-700 font-medium whitespace-nowrap">
-                    {c.need}
-                  </td>
-                  <td className="py-4 px-4 text-slate-700 font-medium whitespace-nowrap">
-                    {c.stage}
-                  </td>
-                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                    {getStatusBadge(c.status)}
-                  </td>
-                  <td className="py-4 px-4 text-center whitespace-nowrap">
-                    {getPriorityBadge(c.priority)}
-                  </td>
-                  <td className="py-4 px-4 font-semibold whitespace-nowrap">
-                    {c.coordinator === 'Unassigned' ? (
-                      <span className="text-red-500">{c.coordinator}</span>
-                    ) : (
-                      <span className="text-slate-700">{c.coordinator}</span>
-                    )}
-                  </td>
-                  <td className="py-4 px-6 text-xs text-slate-400 font-medium whitespace-nowrap">
-                    {c.updated}
-                  </td>
+          {loading ? (
+            <div className="flex items-center justify-center p-12 w-full">
+              <Loader2 className="w-6 h-6 text-blue-600 animate-spin mr-2" />
+              <span className="text-sm text-slate-500">Loading patient cases...</span>
+            </div>
+          ) : filteredCases.length === 0 ? (
+            <div className="p-12 text-center text-sm text-slate-500">
+              No patient cases match your query.
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/70 border-b border-slate-200 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="py-3.5 px-6">Patient</th>
+                  <th className="py-3.5 px-4">Case ID</th>
+                  <th className="py-3.5 px-4">Need</th>
+                  <th className="py-3.5 px-4">Stage</th>
+                  <th className="py-3.5 px-4 text-center">Status</th>
+                  <th className="py-3.5 px-4 text-center">Priority</th>
+                  <th className="py-3.5 px-4">Coordinator</th>
+                  <th className="py-3.5 px-6">Updated</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm">
+                {filteredCases.map((c) => (
+                  <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
+                    <td className="py-4 px-6 font-bold text-slate-800 whitespace-nowrap">
+                      <div className="inline-flex items-center gap-1.5">
+                        <span>{c.patientName}</span>
+                        {c.hasNotificationDot && (
+                          <span className="w-2 h-2 rounded-full bg-red-500 shrink-0" />
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-4 px-4 text-xs font-medium text-slate-500 whitespace-nowrap">
+                      {c.caseId}
+                    </td>
+                    <td className="py-4 px-4 text-slate-700 font-medium whitespace-nowrap">
+                      {c.need}
+                    </td>
+                    <td className="py-4 px-4 text-slate-700 font-medium whitespace-nowrap">
+                      {c.stage}
+                    </td>
+                    <td className="py-4 px-4 text-center whitespace-nowrap">
+                      {getStatusBadge(c.status)}
+                    </td>
+                    <td className="py-4 px-4 text-center whitespace-nowrap">
+                      {getPriorityBadge(c.priority)}
+                    </td>
+                    <td className="py-4 px-4 font-semibold whitespace-nowrap">
+                      {c.coordinator === 'Unassigned' ? (
+                        <span className="text-red-500">{c.coordinator}</span>
+                      ) : (
+                        <span className="text-slate-700">{c.coordinator}</span>
+                      )}
+                    </td>
+                    <td className="py-4 px-6 text-xs text-slate-400 font-medium whitespace-nowrap">
+                      {c.updated}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
     </div>
