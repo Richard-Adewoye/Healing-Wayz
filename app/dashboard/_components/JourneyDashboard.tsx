@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { createClient } from '../../utils/supabase/client';
@@ -11,7 +11,12 @@ import {
   Clock, 
   MapPin, 
   Check, 
-  ArrowRight 
+  ArrowRight,
+  Upload,
+  FileText,
+  Loader2,
+  AlertCircle,
+  X
 } from 'lucide-react';
 
 const steps = [
@@ -58,14 +63,35 @@ interface CaseData {
   submittedAt: string;
 }
 
+interface UploadedDocument {
+  id?: string;
+  name: string;
+  path?: string;
+  created_at?: string;
+  size?: number;
+}
+
 export default function JourneyDashboard() {
   const pathname = usePathname();
+  const supabase = createClient();
+
   const [userName, setUserName] = useState<string>('');
+  const [userId, setUserId] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState<boolean>(true);
   const [caseDetails, setCaseDetails] = useState<CaseData | null>(null);
 
+  // Document management states
+  const [documents, setDocuments] = useState<UploadedDocument[]>([]);
+  const [loadingDocs, setLoadingDocs] = useState<boolean>(false);
+  const [uploading, setUploading] = useState<boolean>(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+  const [showUploadModal, setShowUploadModal] = useState<boolean>(false);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch user session and user profile
   useEffect(() => {
-    // Read local consultation data from onboarding submission
     const storedCase = localStorage.getItem('activeConsultationCase');
     if (storedCase) {
       try {
@@ -79,14 +105,13 @@ export default function JourneyDashboard() {
       }
     }
 
-    const supabase = createClient();
-
-    async function loadUserProfile(userId: string, userMetadata: Record<string, any>, userEmail?: string) {
+    async function loadUserProfile(uid: string, userMetadata: Record<string, any>, userEmail?: string) {
       try {
+        setUserId(uid);
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('full_name')
-          .eq('id', userId)
+          .eq('id', uid)
           .maybeSingle();
 
         if (profileError) {
@@ -103,6 +128,8 @@ export default function JourneyDashboard() {
         if (resolvedName) {
           setUserName(resolvedName);
         }
+
+        fetchUserDocuments(uid);
       } catch (err) {
         console.error('Unexpected error loading profile:', err);
       } finally {
@@ -122,6 +149,7 @@ export default function JourneyDashboard() {
       if (session?.user) {
         loadUserProfile(session.user.id, session.user.user_metadata || {}, session.user.email);
       } else {
+        setUserId(null);
         setLoadingUser(false);
       }
     });
@@ -130,6 +158,95 @@ export default function JourneyDashboard() {
       subscription.unsubscribe();
     };
   }, []);
+
+  // Fetch documents for the authenticated user
+  const fetchUserDocuments = async (uid: string) => {
+    setLoadingDocs(true);
+    try {
+      // First try fetching from 'documents' table if present
+      const { data: dbDocs, error: dbError } = await supabase
+        .from('documents')
+        .select('*')
+        .eq('user_id', uid)
+        .order('created_at', { ascending: false });
+
+      if (!dbError && dbDocs && dbDocs.length > 0) {
+        setDocuments(dbDocs.map(doc => ({ id: doc.id, name: doc.name || doc.file_name, created_at: doc.created_at })));
+      } else {
+        // Fallback: search direct storage bucket items under user's folder
+        const { data: storageFiles, error: storageError } = await supabase.storage
+          .from('patient-documents')
+          .list(uid, { sortBy: { column: 'created_at', order: 'desc' } });
+
+        if (!storageError && storageFiles) {
+          setDocuments(storageFiles.map(f => ({ name: f.name, created_at: f.created_at ?? undefined })));
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load documents:', err);
+    } finally {
+      setLoadingDocs(false);
+    }
+  };
+
+  // Upload handler
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files || files.length === 0) return;
+
+    if (!userId) {
+      setUploadError('You must be logged in to upload documents.');
+      return;
+    }
+
+    const file = files[0];
+    setUploading(true);
+    setUploadError(null);
+    setUploadSuccess(null);
+
+    try {
+      const timestamp = Date.now();
+      const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const filePath = `${userId}/${timestamp}_${sanitizedFileName}`;
+
+      // 1. Storage bucket upload
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('patient-documents')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (uploadErr) {
+        throw new Error(uploadErr.message || 'Failed to upload document file.');
+      }
+
+      // 2. Insert metadata into Supabase DB table
+      const { error: dbErr } = await supabase
+        .from('documents')
+        .insert({
+          user_id: userId,
+          name: file.name,
+          file_path: uploadData?.path || filePath,
+          file_size: file.size,
+          mime_type: file.type,
+          case_id: caseDetails?.caseId || null,
+        });
+
+      if (dbErr) {
+        console.warn('Metadata insertion failed, using file fallback:', dbErr.message);
+      }
+
+      setUploadSuccess(`Successfully uploaded "${file.name}"`);
+      await fetchUserDocuments(userId);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    } catch (err: any) {
+      console.error('Upload Error:', err);
+      setUploadError(err.message || 'An error occurred while uploading. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const cleanName = userName.trim();
   const userInitial = cleanName ? cleanName.charAt(0).toUpperCase() : 'P';
@@ -140,9 +257,20 @@ export default function JourneyDashboard() {
   const currentStageLabel = activeStep ? activeStep.label : 'Consultation Submitted';
   const isItineraryPage = pathname === '/dashboard/medical-itinerary';
 
+  const docCount = documents.length > 0 ? documents.length : (caseDetails?.documentCount ?? 0);
+
   return (
     <div className="flex-1 bg-slate-50/50 min-h-screen p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
       
+      {/* Hidden Global File Input */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleFileUpload} 
+        className="hidden" 
+        accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+      />
+
       {/* Top Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-200/80 pb-4 sm:pb-5 gap-3 sm:gap-4">
         <h1 className="text-lg sm:text-xl font-bold text-blue-900">
@@ -192,21 +320,19 @@ export default function JourneyDashboard() {
         </Link>
       </div>
 
-      {/* Promotional / Announcement Banner */}
-      <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div className="flex items-start sm:items-center gap-3">
-          <Send className="w-4 h-4 text-emerald-600 rotate-45 flex-shrink-0 mt-0.5 sm:mt-0" />
-          <span className="text-xs sm:text-sm text-slate-800 font-medium leading-normal">
-            <strong className="font-semibold text-slate-900">New:</strong> Flight Booking & Scheduling — save up to 5% on all flights.
-          </span>
+      {/* Upload Feedback Messages */}
+      {uploadError && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-800 text-xs sm:text-sm">
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{uploadError}</span>
         </div>
-        <Link
-          href="/dashboard/flights"
-          className="text-xs sm:text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors whitespace-nowrap self-end sm:self-auto"
-        >
-          Learn more →
-        </Link>
-      </div>
+      )}
+      {uploadSuccess && (
+        <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex items-center gap-3 text-emerald-800 text-xs sm:text-sm">
+          <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span>{uploadSuccess}</span>
+        </div>
+      )}
 
       {/* Dynamic Journey Stepper */}
       <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm space-y-6">
@@ -216,7 +342,6 @@ export default function JourneyDashboard() {
 
         <div className="overflow-x-auto pb-4 pt-2 -mx-4 sm:mx-0 px-4 sm:px-0 touch-pan-x scrollbar-none">
           <div className="min-w-[680px] sm:min-w-[700px] flex items-center justify-between relative px-4">
-            
             <div className="absolute top-4 left-8 right-8 h-0.5 bg-gray-200 -z-0" />
             <div 
               className="absolute top-4 left-8 h-0.5 bg-emerald-600 -z-0 transition-all duration-300" 
@@ -261,58 +386,6 @@ export default function JourneyDashboard() {
           </div>
         </div>
       </div>
-
-      {/* Notice / Itinerary Schedule */}
-      {!isItineraryPage ? (
-        <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="space-y-1">
-            <h3 className="text-base font-bold text-blue-900">Case Under Review</h3>
-            <p className="text-xs sm:text-sm text-gray-600">
-              Our team is reviewing your case. We&apos;ll notify you as soon as there&apos;s an update.
-            </p>
-          </div>
-          <Link 
-            href="/dashboard/messages"
-            className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-sm transition-colors w-full sm:w-auto"
-          >
-            Message Coordinator
-          </Link>
-        </div>
-      ) : (
-        <div className="bg-white p-5 sm:p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm space-y-6">
-          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-            <h3 className="text-base font-bold text-blue-900">Upcoming Medical Schedule</h3>
-            <span className="bg-emerald-50 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-200">
-              Confirmed
-            </span>
-          </div>
-
-          <div className="space-y-6">
-            {itineraryEvents.map((event, index) => (
-              <div key={index} className="flex flex-col md:flex-row md:items-start justify-between border-l-2 border-emerald-600 pl-4 py-1 space-y-2 md:space-y-0">
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-blue-600 uppercase tracking-wide">
-                    {event.date}
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900">{event.title}</h4>
-                  <p className="text-xs text-gray-600">{event.details}</p>
-                </div>
-
-                <div className="flex flex-col text-xs text-gray-500 space-y-1 md:text-right pt-1 md:pt-0">
-                  <span className="flex items-center md:justify-end gap-1 font-medium">
-                    <Clock className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    {event.time}
-                  </span>
-                  <span className="flex items-center md:justify-end gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                    {event.location}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* 2x2 Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -377,23 +450,55 @@ export default function JourneyDashboard() {
           </Link>
         </div>
 
-        {/* Dynamic Documents Card */}
+        {/* Dynamic Interactive Documents Card */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
-              DOCUMENTS
-            </span>
-            <div className="space-y-1 text-xs text-gray-600">
-              <p>{caseDetails?.documentCount ?? 1} document(s) on file</p>
-              <p className="text-gray-400">Under review by clinical team</p>
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+                DOCUMENTS ({docCount})
+              </span>
+              {loadingDocs && <Loader2 className="w-3.5 h-3.5 animate-spin text-gray-400" />}
+            </div>
+            
+            <div className="space-y-2 text-xs text-gray-600">
+              <p className="font-medium text-slate-800">{docCount} document(s) uploaded to profile</p>
+              
+              {/* Document list preview */}
+              {documents.length > 0 ? (
+                <ul className="space-y-1 mt-2 max-h-24 overflow-y-auto">
+                  {documents.slice(0, 3).map((doc, idx) => (
+                    <li key={doc.id || idx} className="flex items-center gap-1.5 text-[11px] text-slate-600 truncate">
+                      <FileText className="w-3 h-3 text-emerald-600 shrink-0" />
+                      <span className="truncate">{doc.name}</span>
+                    </li>
+                  ))}
+                  {documents.length > 3 && (
+                    <li className="text-[10px] text-gray-400 italic">+{documents.length - 3} more file(s)</li>
+                  )}
+                </ul>
+              ) : (
+                <p className="text-gray-400">No recent documents uploaded yet.</p>
+              )}
             </div>
           </div>
-          <Link
-            href="/dashboard/documents"
-            className="text-xs font-bold text-blue-900 hover:text-blue-700 inline-flex items-center gap-1 transition-colors pt-2"
-          >
-            View Documents <ArrowRight className="w-3.5 h-3.5" />
-          </Link>
+
+          <div className="flex items-center gap-2 pt-2">
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold rounded-lg shadow-sm transition-colors"
+            >
+              {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+              {uploading ? 'Uploading...' : 'Upload Now'}
+            </button>
+
+            <button
+              onClick={() => setShowUploadModal(true)}
+              className="text-xs font-bold text-blue-900 hover:text-blue-700 inline-flex items-center gap-1 transition-colors px-2 py-1.5"
+            >
+              View All <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
         </div>
 
       </div>
@@ -404,9 +509,14 @@ export default function JourneyDashboard() {
           QUICK ACTIONS
         </span>
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3">
-          <Link href="/dashboard/documents" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
-            Upload Document
-          </Link>
+          <button 
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center inline-flex items-center justify-center gap-1.5"
+          >
+            {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+            {uploading ? 'Uploading...' : 'Upload Document'}
+          </button>
           <Link href="/dashboard/recommendations" className="px-4 py-2 border border-emerald-600 text-emerald-700 font-semibold text-xs rounded-lg hover:bg-emerald-50 transition-colors text-center">
             View Recommendations
           </Link>
@@ -421,6 +531,54 @@ export default function JourneyDashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Documents Modal */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-xl border border-gray-100 max-w-lg w-full p-6 space-y-5 relative">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="text-base font-bold text-blue-900">Your Medical Documents</h3>
+              <button 
+                onClick={() => setShowUploadModal(false)}
+                className="text-gray-400 hover:text-gray-600 p-1 rounded-full"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-60 overflow-y-auto">
+              {documents.length === 0 ? (
+                <p className="text-xs text-gray-500 text-center py-4">No documents uploaded yet.</p>
+              ) : (
+                documents.map((doc, idx) => (
+                  <div key={doc.id || idx} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-gray-100 text-xs">
+                    <div className="flex items-center gap-2.5 truncate">
+                      <FileText className="w-4 h-4 text-emerald-600 shrink-0" />
+                      <span className="font-medium text-slate-800 truncate">{doc.name}</span>
+                    </div>
+                    {doc.created_at && (
+                      <span className="text-[10px] text-gray-400 shrink-0">
+                        {new Date(doc.created_at).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-2 border-t border-gray-100 flex items-center justify-end gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs rounded-lg transition-colors inline-flex items-center gap-1.5"
+              >
+                {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                Upload New Document
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
