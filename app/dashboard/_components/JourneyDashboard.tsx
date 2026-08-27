@@ -16,7 +16,8 @@ import {
   FileText,
   Loader2,
   AlertCircle,
-  X
+  X,
+  MessageSquare
 } from 'lucide-react';
 
 const steps = [
@@ -29,38 +30,18 @@ const steps = [
   { number: 7, label: 'Treatment & Recovery', href: '/dashboard/treatment-recovery' },
 ];
 
-const itineraryEvents = [
-  {
-    date: 'Day 1 — Arrival & Check-in',
-    time: '09:00 AM',
-    title: 'Initial Consultation & Diagnostic Tests',
-    location: 'Al Noor Specialist Medical Center, Dubai',
-    details: 'Meet with Dr. Sarah James for preliminary examination and blood tests.'
-  },
-  {
-    date: 'Day 2 — Treatment Procedure',
-    time: '11:30 AM',
-    title: 'Dermatological Procedure',
-    location: 'Main Operating Suite, 3rd Floor',
-    details: 'Please fast for 6 hours prior to your scheduled appointment time.'
-  },
-  {
-    date: 'Day 3 — Follow-up & Discharge',
-    time: '02:00 PM',
-    title: 'Post-Treatment Review',
-    location: 'Outpatient Clinic',
-    details: 'Final review of treatment progress and prescription clearance.'
-  }
-];
-
 interface CaseData {
   caseId: string;
   fullName: string;
   supportType: string;
   healthcareArea: string;
-  diagnosis: string;
-  documentCount: number;
+  diagnosis?: string;
+  documentCount?: number;
   submittedAt: string;
+  status?: string;
+  coordinatorName?: string;
+  coordinatorRole?: string;
+  coordinatorHours?: string;
 }
 
 interface UploadedDocument {
@@ -71,6 +52,13 @@ interface UploadedDocument {
   size?: number;
 }
 
+interface Message {
+  id: string;
+  sender_name: string;
+  content: string;
+  created_at: string;
+}
+
 export default function JourneyDashboard() {
   const pathname = usePathname();
   const supabase = createClient();
@@ -79,6 +67,7 @@ export default function JourneyDashboard() {
   const [userId, setUserId] = useState<string | null>(null);
   const [loadingUser, setLoadingUser] = useState<boolean>(true);
   const [caseDetails, setCaseDetails] = useState<CaseData | null>(null);
+  const [recentMessage, setRecentMessage] = useState<Message | null>(null);
 
   // Document management states
   const [documents, setDocuments] = useState<UploadedDocument[]>([]);
@@ -90,33 +79,32 @@ export default function JourneyDashboard() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Fetch user session and user profile
   useEffect(() => {
+    // 1. Retrieve submission data from LocalStorage fallback
     const storedCase = localStorage.getItem('activeConsultationCase');
     if (storedCase) {
       try {
         const parsed = JSON.parse(storedCase);
         setCaseDetails(parsed);
-        if (parsed.fullName) {
-          setUserName(parsed.fullName);
-        }
+        if (parsed.fullName) setUserName(parsed.fullName);
       } catch (err) {
         console.error('Failed to parse activeConsultationCase:', err);
       }
     }
 
-    async function loadUserProfile(uid: string, userMetadata: Record<string, any>, userEmail?: string) {
+    // 2. Fetch User Profile, Active Consultation Request, & Latest Messages from Supabase
+    async function loadUserProfileAndRequests(uid: string, userMetadata: Record<string, any>, userEmail?: string) {
       try {
         setUserId(uid);
+
+        // Fetch User Profile
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
           .select('full_name')
           .eq('id', uid)
           .maybeSingle();
 
-        if (profileError) {
-          console.error('Error fetching profile row:', profileError);
-        }
+        if (profileError) console.error('Error fetching profile:', profileError);
 
         const resolvedName = 
           profile?.full_name || 
@@ -125,13 +113,63 @@ export default function JourneyDashboard() {
           (userMetadata?.first_name ? `${userMetadata.first_name}` : null) ||
           (userEmail ? userEmail.split('@')[0] : null);
 
-        if (resolvedName) {
-          setUserName(resolvedName);
+        if (resolvedName) setUserName(resolvedName);
+
+        // Fetch Active Consultation / Request Form Data
+        const { data: latestCase, error: caseError } = await supabase
+          .from('consultation_requests')
+          .select(`
+            id,
+            case_id,
+            created_at,
+            support_type,
+            healthcare_area,
+            status,
+            coordinators (
+              full_name,
+              role,
+              available_hours
+            )
+          `)
+          .eq('user_id', uid)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!caseError && latestCase) {
+          const coordinator = Array.isArray(latestCase.coordinators) 
+            ? latestCase.coordinators[0] 
+            : latestCase.coordinators;
+
+          setCaseDetails({
+            caseId: latestCase.case_id || latestCase.id,
+            fullName: resolvedName || '',
+            supportType: latestCase.support_type,
+            healthcareArea: latestCase.healthcare_area,
+            submittedAt: new Date(latestCase.created_at).toLocaleDateString(),
+            status: latestCase.status,
+            coordinatorName: coordinator?.full_name,
+            coordinatorRole: coordinator?.role,
+            coordinatorHours: coordinator?.available_hours,
+          });
+        }
+
+        // Fetch Latest Message
+        const { data: lastMsg } = await supabase
+          .from('messages')
+          .select('id, sender_name, content, created_at')
+          .eq('user_id', uid)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (lastMsg) {
+          setRecentMessage(lastMsg);
         }
 
         fetchUserDocuments(uid);
       } catch (err) {
-        console.error('Unexpected error loading profile:', err);
+        console.error('Unexpected error loading dashboard data:', err);
       } finally {
         setLoadingUser(false);
       }
@@ -139,7 +177,7 @@ export default function JourneyDashboard() {
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        loadUserProfile(session.user.id, session.user.user_metadata || {}, session.user.email);
+        loadUserProfileAndRequests(session.user.id, session.user.user_metadata || {}, session.user.email);
       } else {
         setLoadingUser(false);
       }
@@ -147,7 +185,7 @@ export default function JourneyDashboard() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        loadUserProfile(session.user.id, session.user.user_metadata || {}, session.user.email);
+        loadUserProfileAndRequests(session.user.id, session.user.user_metadata || {}, session.user.email);
       } else {
         setUserId(null);
         setLoadingUser(false);
@@ -163,7 +201,6 @@ export default function JourneyDashboard() {
   const fetchUserDocuments = async (uid: string) => {
     setLoadingDocs(true);
     try {
-      // First try fetching from 'documents' table if present
       const { data: dbDocs, error: dbError } = await supabase
         .from('documents')
         .select('*')
@@ -173,7 +210,6 @@ export default function JourneyDashboard() {
       if (!dbError && dbDocs && dbDocs.length > 0) {
         setDocuments(dbDocs.map(doc => ({ id: doc.id, name: doc.name || doc.file_name, created_at: doc.created_at })));
       } else {
-        // Fallback: search direct storage bucket items under user's folder
         const { data: storageFiles, error: storageError } = await supabase.storage
           .from('patient-documents')
           .list(uid, { sortBy: { column: 'created_at', order: 'desc' } });
@@ -189,7 +225,6 @@ export default function JourneyDashboard() {
     }
   };
 
-  // Upload handler
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -209,20 +244,13 @@ export default function JourneyDashboard() {
       const sanitizedFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${userId}/${timestamp}_${sanitizedFileName}`;
 
-      // 1. Storage bucket upload
       const { data: uploadData, error: uploadErr } = await supabase.storage
         .from('patient-documents')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-        });
+        .upload(filePath, file, { cacheControl: '3600', upsert: false });
 
-      if (uploadErr) {
-        throw new Error(uploadErr.message || 'Failed to upload document file.');
-      }
+      if (uploadErr) throw new Error(uploadErr.message || 'Failed to upload document file.');
 
-      // 2. Insert metadata into Supabase DB table
-      const { error: dbErr } = await supabase
+      await supabase
         .from('documents')
         .insert({
           user_id: userId,
@@ -233,15 +261,10 @@ export default function JourneyDashboard() {
           case_id: caseDetails?.caseId || null,
         });
 
-      if (dbErr) {
-        console.warn('Metadata insertion failed, using file fallback:', dbErr.message);
-      }
-
       setUploadSuccess(`Successfully uploaded "${file.name}"`);
       await fetchUserDocuments(userId);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch (err: any) {
-      console.error('Upload Error:', err);
       setUploadError(err.message || 'An error occurred while uploading. Please try again.');
     } finally {
       setUploading(false);
@@ -257,12 +280,10 @@ export default function JourneyDashboard() {
   const currentStageLabel = activeStep ? activeStep.label : 'Consultation Submitted';
   const isItineraryPage = pathname === '/dashboard/medical-itinerary';
 
-  const docCount = documents.length > 0 ? documents.length : (caseDetails?.documentCount ?? 0);
+  const docCount = documents.length;
 
   return (
     <div className="flex-1 bg-slate-50/50 min-h-screen p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
-      
-      {/* Hidden Global File Input */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -271,7 +292,7 @@ export default function JourneyDashboard() {
         accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
       />
 
-      {/* Top Header Bar */}
+      {/* Header Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-gray-200/80 pb-4 sm:pb-5 gap-3 sm:gap-4">
         <h1 className="text-lg sm:text-xl font-bold text-blue-900">
           My Healthcare Journey
@@ -286,7 +307,6 @@ export default function JourneyDashboard() {
           <div className="flex items-center gap-3">
             <button className="p-2 text-gray-500 hover:text-gray-700 relative rounded-full hover:bg-slate-100 transition-colors">
               <Bell className="w-5 h-5 text-gray-600" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full" />
             </button>
             <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-xs sm:text-sm shadow-sm shrink-0 uppercase">
               {loadingUser && !userName ? '...' : userInitial}
@@ -305,10 +325,9 @@ export default function JourneyDashboard() {
             }
           </h2>
           <p className="text-xs sm:text-sm text-gray-500 mt-1">
-            {isItineraryPage 
-              ? 'Scheduled appointments and care steps prepared by Sarah James.'
-              : `Case ${caseDetails?.caseId || 'HW-2026-531971'} · Last updated ${caseDetails?.submittedAt || 'Today'}`
-            }
+            {caseDetails?.caseId 
+              ? `Case #${caseDetails.caseId} · Last updated ${caseDetails.submittedAt}`
+              : 'No active consultation requests submitted yet.'}
           </p>
         </div>
         <Link 
@@ -320,7 +339,7 @@ export default function JourneyDashboard() {
         </Link>
       </div>
 
-      {/* Upload Feedback Messages */}
+      {/* Feedback Alerts */}
       {uploadError && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 text-red-800 text-xs sm:text-sm">
           <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
@@ -334,7 +353,7 @@ export default function JourneyDashboard() {
         </div>
       )}
 
-      {/* Dynamic Journey Stepper */}
+      {/* Journey Stepper */}
       <div className="bg-white p-4 sm:p-6 md:p-8 rounded-2xl border border-gray-100 shadow-sm space-y-6">
         <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
           YOUR HEALTHCARE JOURNEY
@@ -387,25 +406,33 @@ export default function JourneyDashboard() {
         </div>
       </div>
 
-      {/* 2x2 Cards Grid */}
+      {/* 2x2 Grid Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         
-        {/* Care Coordinator Card */}
+        {/* Dynamic Care Coordinator Card */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5 flex flex-col justify-between">
           <div className="space-y-4">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
               ASSIGNED CARE COORDINATOR
             </span>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-sm shrink-0">
-                S
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-blue-900">Sarah James</h4>
-                <p className="text-xs text-gray-500">Patient Care Coordinator</p>
-              </div>
-            </div>
-            <p className="text-xs text-gray-500">Available Monday–Friday, 9:00 AM–5:00 PM</p>
+            {caseDetails?.coordinatorName ? (
+              <>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-blue-900 text-white font-bold flex items-center justify-center text-sm shrink-0">
+                    {caseDetails.coordinatorName.charAt(0)}
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-blue-900">{caseDetails.coordinatorName}</h4>
+                    <p className="text-xs text-gray-500">{caseDetails.coordinatorRole || 'Patient Care Coordinator'}</p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500">{caseDetails.coordinatorHours || 'Available during standard working hours'}</p>
+              </>
+            ) : (
+              <p className="text-xs text-gray-500 py-2">
+                A coordinator will be assigned to your case upon review.
+              </p>
+            )}
           </div>
           <Link 
             href="/dashboard/messages"
@@ -420,27 +447,47 @@ export default function JourneyDashboard() {
           <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
             CASE SUMMARY
           </span>
-          <div className="space-y-2 text-xs text-gray-600">
-            <p><strong className="text-slate-800 font-semibold">Case ID:</strong> {caseDetails?.caseId || 'HW-2026-531971'}</p>
-            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> {caseDetails?.supportType || 'Finding the right hospital or specialist'}</p>
-            {caseDetails?.healthcareArea && (
-              <p><strong className="text-slate-800 font-semibold">Specialty Area:</strong> {caseDetails.healthcareArea}</p>
-            )}
-            <p><strong className="text-slate-800 font-semibold">Stage:</strong> {currentStageLabel}</p>
-            <p><strong className="text-slate-800 font-semibold">Started:</strong> {caseDetails?.submittedAt || 'Today'}</p>
-          </div>
+          {caseDetails ? (
+            <div className="space-y-2 text-xs text-gray-600">
+              <p><strong className="text-slate-800 font-semibold">Case ID:</strong> {caseDetails.caseId}</p>
+              <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> {caseDetails.supportType}</p>
+              {caseDetails.healthcareArea && (
+                <p><strong className="text-slate-800 font-semibold">Specialty Area:</strong> {caseDetails.healthcareArea}</p>
+              )}
+              <p><strong className="text-slate-800 font-semibold">Stage:</strong> {currentStageLabel}</p>
+              <p><strong className="text-slate-800 font-semibold">Submitted:</strong> {caseDetails.submittedAt}</p>
+            </div>
+          ) : (
+            <div className="text-xs text-gray-500 space-y-3">
+              <p>No active consultation cases found for your account.</p>
+              <Link 
+                href="/dashboard/consultation/new" 
+                className="text-emerald-600 hover:text-emerald-700 font-semibold underline inline-block"
+              >
+                Submit a consultation request
+              </Link>
+            </div>
+          )}
         </div>
 
-        {/* Recent Messages Card */}
+        {/* Dynamic Messages Card */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
               RECENT MESSAGES
             </span>
-            <p className="text-xs text-gray-600 italic leading-relaxed">
-              &quot;Good question. Let me confirm the details with our clinical advisor and follow up within t...&quot;
-            </p>
-            <p className="text-[11px] text-gray-400">Sarah James · Just now</p>
+            {recentMessage ? (
+              <>
+                <p className="text-xs text-gray-600 italic leading-relaxed truncate">
+                  &quot;{recentMessage.content}&quot;
+                </p>
+                <p className="text-[11px] text-gray-400">
+                  {recentMessage.sender_name} · {new Date(recentMessage.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </>
+            ) : (
+              <p className="text-xs text-gray-400 py-2">No messages exchanged yet.</p>
+            )}
           </div>
           <Link
             href="/dashboard/messages"
@@ -450,7 +497,7 @@ export default function JourneyDashboard() {
           </Link>
         </div>
 
-        {/* Dynamic Interactive Documents Card */}
+        {/* Dynamic Documents Card */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center justify-between">
@@ -463,7 +510,6 @@ export default function JourneyDashboard() {
             <div className="space-y-2 text-xs text-gray-600">
               <p className="font-medium text-slate-800">{docCount} document(s) uploaded to profile</p>
               
-              {/* Document list preview */}
               {documents.length > 0 ? (
                 <ul className="space-y-1 mt-2 max-h-24 overflow-y-auto">
                   {documents.slice(0, 3).map((doc, idx) => (
@@ -477,7 +523,7 @@ export default function JourneyDashboard() {
                   )}
                 </ul>
               ) : (
-                <p className="text-gray-400">No recent documents uploaded yet.</p>
+                <p className="text-gray-400">No documents uploaded yet.</p>
               )}
             </div>
           </div>
