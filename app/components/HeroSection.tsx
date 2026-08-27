@@ -1,55 +1,91 @@
 import React from 'react';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export default function HeroSection() {
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-blue-50 via-sky-50 to-emerald-50 py-16 md:py-24">
-      {/* Decorative backdrop shapes */}
-      <div className="absolute top-0 left-0 -translate-x-1/3 -translate-y-1/3 w-96 h-96 bg-emerald-200/40 rounded-full blur-2xl pointer-events-none" />
-      
+    <section className="relative overflow-hidden bg-gradient-to-r from-[#033ca8] via-[#0444c5] to-[#012a80] text-white py-16 md:py-24 lg:py-28">
+      {/* Top-left green decorative circle */}
+      <div className="absolute -top-24 -left-24 w-72 h-72 sm:w-96 sm:h-96 bg-[#34a86b] rounded-full pointer-events-none z-0" />
+
+      {/* Bottom-right lighter blue decorative ring element */}
+      <div className="absolute -bottom-40 -right-20 w-[500px] h-[500px] sm:w-[650px] sm:h-[650px] bg-[#1a6eff] rounded-full pointer-events-none z-0 opacity-80" />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Left Content */}
-          <div className="space-y-6">
-            <span className="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-sm font-medium rounded-md">
-              Healthcare Navigation, Simplified
-            </span>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-blue-900 leading-tight">
-              Confident healthcare decision begins with the right guidance.
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+          
+          {/* Left Content Column */}
+          <div className="lg:col-span-6 space-y-6">
+            {/* Top Tag Badge */}
+            <div>
+              <span className="inline-block px-4 py-1.5 bg-white text-[#2a8a58] text-xs font-medium rounded-sm shadow-sm">
+                Healthcare Navigation, Simplified
+              </span>
+            </div>
+
+            {/* Main Headline */}
+            <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-[2.75rem] font-medium leading-[1.2] text-white tracking-tight">
+              We provide specialized guidance to help you and your family make better healthcare decisions.
             </h1>
-            <p className="text-gray-600 text-lg max-w-xl">
-              Helping patients and families make confident healthcare decisions by connecting them with trusted hospitals and specialists, whether locally or abroad, so they have the best possible chance at recovery.
-            </p>
-            <div className="flex flex-wrap gap-4 pt-2">
-              <a
+
+            {/* Action Buttons */}
+            <div className="flex flex-wrap items-center gap-4 pt-4">
+              <Link
                 href="#consultation"
-                className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-medium rounded-lg shadow-sm transition"
+                className="px-6 py-3 bg-gradient-to-r from-[#44a868] to-[#2e8b50] hover:brightness-105 text-white font-medium text-sm rounded-xl shadow-md transition-all"
               >
                 Start Consultation
-              </a>
-              <a
+              </Link>
+              <Link
                 href="#services"
-                className="px-6 py-3 bg-white hover:bg-gray-50 text-emerald-700 font-medium rounded-lg border border-gray-200 shadow-sm transition"
+                className="px-6 py-3 bg-[#e8f1ff] hover:bg-white text-[#2b72a0] font-medium text-sm rounded-xl shadow-md transition-all"
               >
                 Explore Services
-              </a>
+              </Link>
             </div>
           </div>
 
-          {/* Right Image Graphic */}
-          <div className="relative flex justify-center items-center">
-            <div className="absolute w-80 h-80 sm:w-96 sm:h-96 bg-blue-500 rounded-full z-0" />
-            <div className="relative z-10 w-full max-w-md">
+          {/* Right Image Graphic & Tooltips */}
+          <div className="lg:col-span-6 relative flex justify-center items-center mt-8 lg:mt-0">
+            {/* Circular background highlight for the portrait */}
+            <div className="absolute w-[280px] h-[280px] sm:w-[380px] sm:h-[380px] bg-[#1e75ff] rounded-full z-0 translate-y-2 sm:translate-y-4" />
+
+            <div className="relative z-10 w-full max-w-lg flex justify-center">
               <Image
-                src="/images/image one.jfif"
-                alt="Healthcare Professional"
-                width={500}
-                height={600}
-                className="object-contain"
+                src="/images/hero-image.png"
+                alt="Patient guided by healthcare service"
+                width={520}
+                height={620}
+                className="object-contain relative z-10"
                 priority
               />
+
+              {/* Floating Node Tag 1 (Left side) */}
+              <div className="absolute left-2 sm:left-6 bottom-32 z-20 flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-lg border border-white/20 shadow-lg">
+                <span className="text-xs text-white/90 font-light whitespace-nowrap">
+                  You don't have to figure it out alone
+                </span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3cd070] shrink-0" />
+              </div>
+
+              {/* Floating Node Tag 2 (Top right) */}
+              <div className="absolute right-4 sm:right-0 top-40 z-20 flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-lg border border-white/20 shadow-lg">
+                <span className="text-xs text-white/90 font-light whitespace-nowrap">
+                  Healingways makes connection
+                </span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3cd070] shrink-0" />
+              </div>
+
+              {/* Floating Node Tag 3 (Bottom right) */}
+              <div className="absolute right-8 sm:right-14 bottom-16 z-20 flex items-center gap-2 px-3 py-1.5 bg-white/20 backdrop-blur-md rounded-lg border border-white/20 shadow-lg">
+                <span className="text-xs text-white/90 font-light whitespace-nowrap">
+                  Healthcare tourism can feel impossible
+                </span>
+                <span className="w-2.5 h-2.5 rounded-full bg-[#3cd070] shrink-0" />
+              </div>
             </div>
           </div>
+
         </div>
       </div>
     </section>
