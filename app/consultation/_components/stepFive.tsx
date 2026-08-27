@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 
 const STEPS = [
   { id: 1, label: 'About You' },
@@ -32,18 +33,32 @@ const PRIORITY_OPTIONS = [
   'Speed of access',
 ];
 
+interface StepFiveProps {
+  onNext?: (data: any) => void;
+  onBack?: () => void;
+  initialData?: any;
+  caseId?: string;
+}
+
 export default function StepFivePreferences({
   onNext,
   onBack,
-}: {
-  onNext?: (data: any) => void;
-  onBack?: () => void;
-}) {
+  initialData = {},
+  caseId,
+}: StepFiveProps) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const [formData, setFormData] = useState({
-    careOutsideCountry: 'Yes',
-    preferredLocation: 'Within my country',
-    priorities: ['Treatment cost'] as string[],
+    careOutsideCountry: initialData.careOutsideCountry || 'Yes',
+    preferredLocation: initialData.preferredLocation || 'Within my country',
+    priorities: (initialData.priorities || ['Treatment cost']) as string[],
   });
+
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const togglePriority = (priority: string) => {
     setFormData((prev) => {
@@ -57,9 +72,50 @@ export default function StepFivePreferences({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (onNext) onNext(formData);
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      // 1. Get user session
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User session not found. Please log in or restart from step 1.');
+      }
+
+      if (!caseId) {
+        throw new Error('Missing case context. Please complete previous steps first.');
+      }
+
+      // 2. Persist preferences into Supabase cases table
+      const { data: updatedCase, error: dbError } = await supabase
+        .from('cases')
+        .update({
+          care_outside_country: formData.careOutsideCountry,
+          preferred_location: formData.preferredLocation,
+          priorities: formData.priorities,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', caseId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 3. Move forward to Step 6
+      if (onNext) {
+        onNext({
+          ...formData,
+          caseId: updatedCase.id,
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update preferences. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -79,7 +135,6 @@ export default function StepFivePreferences({
         {/* Stepper Header Bar */}
         <div className="pt-8 pb-10">
           <div className="flex items-center justify-between relative max-w-2xl mx-auto px-2">
-            {/* Horizontal Line */}
             <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0" />
 
             {STEPS.map((step) => {
@@ -115,7 +170,13 @@ export default function StepFivePreferences({
 
       {/* Form Content Card */}
       <div className="max-w-2xl mx-auto space-y-6">
-        <form onSubmit={handleSubmit} className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+        {errorMsg && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-medium text-center">
+            {errorMsg}
+          </div>
+        )}
+
+        <form id="step-five-form" onSubmit={handleSubmit} className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
           
           {/* Are you open to receiving care outside your country? */}
           <div className="space-y-2">
@@ -127,7 +188,8 @@ export default function StepFivePreferences({
                 <button
                   key={option}
                   type="button"
-                  onClick={() => setFormData({ ...formData, careOutsideCountry: option })}
+                  disabled={loading}
+                  onClick={() => setFormData((prev) => ({ ...prev, careOutsideCountry: option }))}
                   className={`px-5 py-2 rounded-full text-xs font-semibold transition-all border ${
                     formData.careOutsideCountry === option
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
@@ -150,7 +212,8 @@ export default function StepFivePreferences({
                 <button
                   key={loc}
                   type="button"
-                  onClick={() => setFormData({ ...formData, preferredLocation: loc })}
+                  disabled={loading}
+                  onClick={() => setFormData((prev) => ({ ...prev, preferredLocation: loc }))}
                   className={`px-4 py-2 rounded-full text-xs font-semibold transition-all border ${
                     formData.preferredLocation === loc
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
@@ -175,6 +238,7 @@ export default function StepFivePreferences({
                   <button
                     key={priority}
                     type="button"
+                    disabled={loading}
                     onClick={() => togglePriority(priority)}
                     className={`px-4 py-2 rounded-full text-xs font-semibold transition-all border ${
                       isSelected
@@ -196,16 +260,19 @@ export default function StepFivePreferences({
           <button
             type="button"
             onClick={onBack}
-            className="text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors flex items-center gap-1"
+            disabled={loading}
+            className="text-sm font-bold text-blue-900 hover:text-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
           >
             ← Back
           </button>
           <button
-            type="button"
-            onClick={handleSubmit}
-            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm"
+            type="submit"
+            form="step-five-form"
+            disabled={loading}
+            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm flex items-center gap-2"
           >
-            Continue
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? 'Saving...' : 'Continue'}
           </button>
         </div>
       </div>

@@ -1,6 +1,13 @@
 'use client';
 
 import React, { useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
+
+// Inside your client component:
+const supabase = createBrowserClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
 
 const STEPS = [
   { id: 1, label: 'About You' },
@@ -13,24 +20,87 @@ const STEPS = [
 
 const PATIENT_RELATIONS = ['Myself', 'My child', 'My spouse', 'Another family member'];
 
-export default function StepOneAboutYou({ onNext }: { onNext?: (data: any) => void }) {
+interface StepOneProps {
+  onNext?: (data: any) => void;
+  initialData?: any;
+}
+
+export default function StepOneAboutYou({ onNext, initialData = {} }: StepOneProps) {
   const [formData, setFormData] = useState({
-    consultationFor: 'Myself',
-    fullName: '',
-    email: '',
-    phone: '',
-    country: '',
+    consultationFor: initialData.consultationFor || 'Myself',
+    fullName: initialData.fullName || '',
+    email: initialData.email || '',
+    phone: initialData.phone || '',
+    country: initialData.country || '',
     password: '',
     confirmPassword: '',
   });
 
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (onNext) onNext(formData);
+    setErrorMsg(null);
+
+    // 1. Client-side password validation
+    if (formData.password.length < 8) {
+      setErrorMsg('Password must be at least 8 characters long.');
+      return;
+    }
+    if (formData.password !== formData.confirmPassword) {
+      setErrorMsg('Passwords do not match.');
+      return;
+    }
+
+    setLoading(true);
+
+    try {
+      // 2. Sign up user via Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: {
+            full_name: formData.fullName,
+            phone: formData.phone,
+            country: formData.country,
+          },
+        },
+      });
+
+      if (authError) throw authError;
+
+      const user = authData.user;
+      if (!user) throw new Error('Account creation failed. Please try again.');
+
+      // 3. Upsert user info into public.profiles
+      const { error: profileError } = await supabase.from('profiles').upsert({
+        id: user.id,
+        email: formData.email,
+        full_name: formData.fullName,
+        phone: formData.phone,
+        country: formData.country,
+      });
+
+      if (profileError) throw profileError;
+
+      // 4. Pass step data along with authenticated userId to parent form
+      if (onNext) {
+        onNext({
+          ...formData,
+          userId: user.id,
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An unexpected error occurred during signup.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,7 +120,6 @@ export default function StepOneAboutYou({ onNext }: { onNext?: (data: any) => vo
         {/* Stepper Header Bar */}
         <div className="pt-8 pb-10">
           <div className="flex items-center justify-between relative max-w-2xl mx-auto px-2">
-            {/* Horizontal Line behind circles */}
             <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0" />
 
             {STEPS.map((step) => {
@@ -82,6 +151,12 @@ export default function StepOneAboutYou({ onNext }: { onNext?: (data: any) => vo
 
       {/* Main Form Card */}
       <div className="max-w-2xl mx-auto bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+        {errorMsg && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-medium text-center">
+            {errorMsg}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Who is this consultation for? */}
           <div className="space-y-2">
@@ -93,7 +168,7 @@ export default function StepOneAboutYou({ onNext }: { onNext?: (data: any) => vo
                 <button
                   key={relation}
                   type="button"
-                  onClick={() => setFormData({ ...formData, consultationFor: relation })}
+                  onClick={() => setFormData((prev) => ({ ...prev, consultationFor: relation }))}
                   className={`px-4 py-2 rounded-full text-xs font-semibold transition-all border ${
                     formData.consultationFor === relation
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
@@ -215,9 +290,10 @@ export default function StepOneAboutYou({ onNext }: { onNext?: (data: any) => vo
           <div className="flex justify-center pt-4">
             <button
               type="submit"
-              className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm"
+              disabled={loading}
+              className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm"
             >
-              Continue
+              {loading ? 'Creating Account...' : 'Continue'}
             </button>
           </div>
         </form>

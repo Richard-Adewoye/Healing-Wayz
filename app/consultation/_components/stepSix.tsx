@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check } from 'lucide-react';
+import { Check, Loader2 } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 
 const STEPS = [
   { id: 1, label: 'About You' },
@@ -39,6 +40,14 @@ export interface ReviewData {
   };
 }
 
+interface StepSixProps {
+  reviewData?: ReviewData;
+  caseId?: string;
+  onEditStep?: (stepNumber: number) => void;
+  onBack?: () => void;
+  onSubmit?: (consentData: any) => void;
+}
+
 export default function StepSixConsent({
   reviewData = {
     aboutYou: {
@@ -66,32 +75,80 @@ export default function StepSixConsent({
       whatMatters: ['Hospital reputation'],
     },
   },
+  caseId,
   onEditStep,
   onBack,
   onSubmit,
-}: {
-  reviewData?: ReviewData;
-  onEditStep?: (stepNumber: number) => void;
-  onBack?: () => void;
-  onSubmit?: (consentData: any) => void;
-}) {
+}: StepSixProps) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const [consent, setConsent] = useState({
     confirmAccurate: false,
     consentReview: false,
     understandDisclaimer: false,
   });
 
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
   const handleCheckboxChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setConsent({ ...consent, [e.target.name]: e.target.checked });
   };
 
   const isSubmitDisabled =
-    !consent.confirmAccurate || !consent.consentReview || !consent.understandDisclaimer;
+    !consent.confirmAccurate || !consent.consentReview || !consent.understandDisclaimer || loading;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!isSubmitDisabled && onSubmit) {
-      onSubmit(consent);
+    if (isSubmitDisabled) return;
+
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      // 1. Authenticate user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User session expired. Please log in again before submitting.');
+      }
+
+      if (!caseId) {
+        throw new Error('Case ID missing. Please verify earlier steps.');
+      }
+
+      const timestamp = new Date().toISOString();
+
+      // 2. Persist consent flags & finalize case submission status
+      const { error: dbError } = await supabase
+        .from('cases')
+        .update({
+          consent_accurate: consent.confirmAccurate,
+          consent_review: consent.consentReview,
+          consent_disclaimer: consent.understandDisclaimer,
+          status: 'submitted',
+          submitted_at: timestamp,
+          updated_at: timestamp,
+        })
+        .eq('id', caseId)
+        .eq('user_id', user.id);
+
+      if (dbError) throw dbError;
+
+      // 3. Trigger parent callback for final confirmation UI / routing
+      if (onSubmit) {
+        onSubmit({
+          ...consent,
+          caseId,
+          submittedAt: timestamp,
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to submit consultation. Please try again.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -112,7 +169,6 @@ export default function StepSixConsent({
         {/* Stepper Header Bar */}
         <div className="pt-8 pb-10">
           <div className="flex items-center justify-between relative max-w-2xl mx-auto px-2">
-            {/* Horizontal Line */}
             <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0" />
 
             {STEPS.map((step) => {
@@ -148,6 +204,12 @@ export default function StepSixConsent({
 
       {/* Main Content Card */}
       <div className="max-w-2xl mx-auto space-y-6">
+        {errorMsg && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-medium text-center">
+            {errorMsg}
+          </div>
+        )}
+
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
           
           {/* Review Your Information Container */}
@@ -162,8 +224,9 @@ export default function StepSixConsent({
                 <span className="font-bold text-slate-700 uppercase tracking-wide text-[11px]">ABOUT YOU</span>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => onEditStep && onEditStep(1)}
-                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors"
+                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors disabled:opacity-50"
                 >
                   Edit
                 </button>
@@ -181,8 +244,9 @@ export default function StepSixConsent({
                 <span className="font-bold text-slate-700 uppercase tracking-wide text-[11px]">YOUR SITUATION</span>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => onEditStep && onEditStep(2)}
-                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors"
+                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors disabled:opacity-50"
                 >
                   Edit
                 </button>
@@ -202,8 +266,9 @@ export default function StepSixConsent({
                 <span className="font-bold text-slate-700 uppercase tracking-wide text-[11px]">MEDICAL DETAILS</span>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => onEditStep && onEditStep(3)}
-                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors"
+                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors disabled:opacity-50"
                 >
                   Edit
                 </button>
@@ -220,8 +285,9 @@ export default function StepSixConsent({
                 <span className="font-bold text-slate-700 uppercase tracking-wide text-[11px]">DOCUMENTS</span>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => onEditStep && onEditStep(4)}
-                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors"
+                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors disabled:opacity-50"
                 >
                   Edit
                 </button>
@@ -237,8 +303,9 @@ export default function StepSixConsent({
                 <span className="font-bold text-slate-700 uppercase tracking-wide text-[11px]">PREFERENCES</span>
                 <button
                   type="button"
+                  disabled={loading}
                   onClick={() => onEditStep && onEditStep(5)}
-                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors"
+                  className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700 transition-colors disabled:opacity-50"
                 >
                   Edit
                 </button>
@@ -250,14 +317,15 @@ export default function StepSixConsent({
           </div>
 
           {/* Consent Checkboxes */}
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+          <form id="step-six-form" onSubmit={handleSubmit} className="space-y-4 pt-2">
             <label className="flex items-start gap-3 cursor-pointer group">
               <input
                 type="checkbox"
                 name="confirmAccurate"
+                disabled={loading}
                 checked={consent.confirmAccurate}
                 onChange={handleCheckboxChange}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-50"
               />
               <span className="text-xs text-slate-700 group-hover:text-slate-900">
                 I confirm the information provided is accurate.
@@ -268,9 +336,10 @@ export default function StepSixConsent({
               <input
                 type="checkbox"
                 name="consentReview"
+                disabled={loading}
                 checked={consent.consentReview}
                 onChange={handleCheckboxChange}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-50"
               />
               <span className="text-xs text-slate-700 group-hover:text-slate-900">
                 I consent to HealingWays reviewing my healthcare information to provide coordination support.
@@ -281,9 +350,10 @@ export default function StepSixConsent({
               <input
                 type="checkbox"
                 name="understandDisclaimer"
+                disabled={loading}
                 checked={consent.understandDisclaimer}
                 onChange={handleCheckboxChange}
-                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer disabled:opacity-50"
               />
               <span className="text-xs text-slate-700 group-hover:text-slate-900">
                 I understand HealingWays does not provide medical treatment and does not guarantee outcomes.
@@ -298,21 +368,23 @@ export default function StepSixConsent({
           <button
             type="button"
             onClick={onBack}
-            className="text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors flex items-center gap-1"
+            disabled={loading}
+            className="text-sm font-bold text-blue-900 hover:text-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
           >
             ← Back
           </button>
           <button
-            type="button"
-            onClick={handleSubmit}
+            type="submit"
+            form="step-six-form"
             disabled={isSubmitDisabled}
-            className={`px-8 py-3 font-semibold text-sm rounded-lg transition-colors shadow-sm ${
+            className={`px-8 py-3 font-semibold text-sm rounded-lg transition-colors shadow-sm flex items-center gap-2 ${
               isSubmitDisabled
                 ? 'bg-slate-300 text-slate-500 cursor-not-allowed'
                 : 'bg-emerald-600 hover:bg-emerald-700 text-white'
             }`}
           >
-            Submit Consultation
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? 'Submitting...' : 'Submit Consultation'}
           </button>
         </div>
       </div>

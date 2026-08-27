@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { Check } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 
 const STEPS = [
   { id: 1, label: 'About You' },
@@ -21,22 +22,77 @@ const TREATMENT_STATUSES = [
   'Seeking another opinion',
 ];
 
+interface StepThreeProps {
+  onNext?: (data: any) => void;
+  onBack?: () => void;
+  initialData?: any;
+  caseId?: string;
+}
+
 export default function StepThreeMedicalDetails({
   onNext,
   onBack,
-}: {
-  onNext?: (data: any) => void;
-  onBack?: () => void;
-}) {
+  initialData = {},
+  caseId,
+}: StepThreeProps) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const [formData, setFormData] = useState({
-    hasDiagnosis: 'Yes',
-    diagnosis: '',
-    treatmentStatus: 'Not started treatment',
+    hasDiagnosis: initialData.hasDiagnosis || 'Yes',
+    diagnosis: initialData.diagnosis || '',
+    treatmentStatus: initialData.treatmentStatus || 'Not started treatment',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (onNext) onNext(formData);
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      // 1. Verify user session
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User session not found. Please log in or restart from step 1.');
+      }
+
+      if (!caseId) {
+        throw new Error('Missing case context. Please complete step 2 first.');
+      }
+
+      // 2. Persist/update medical details in Supabase cases table
+      const { data: updatedCase, error: dbError } = await supabase
+        .from('cases')
+        .update({
+          has_diagnosis: formData.hasDiagnosis,
+          diagnosis: formData.diagnosis || null,
+          treatment_status: formData.treatmentStatus,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', caseId)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (dbError) throw dbError;
+
+      // 3. Move to Step 4 with updated payload
+      if (onNext) {
+        onNext({
+          ...formData,
+          caseId: updatedCase.id,
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to update medical details. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -56,7 +112,6 @@ export default function StepThreeMedicalDetails({
         {/* Stepper Header Bar */}
         <div className="pt-8 pb-10">
           <div className="flex items-center justify-between relative max-w-2xl mx-auto px-2">
-            {/* Horizontal Line */}
             <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0" />
 
             {STEPS.map((step) => {
@@ -92,7 +147,13 @@ export default function StepThreeMedicalDetails({
 
       {/* Form Content Card */}
       <div className="max-w-2xl mx-auto space-y-6">
-        <form onSubmit={handleSubmit} className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+        {errorMsg && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-medium text-center">
+            {errorMsg}
+          </div>
+        )}
+
+        <form id="step-three-form" onSubmit={handleSubmit} className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
           
           {/* Have you received a medical diagnosis? */}
           <div className="space-y-2">
@@ -104,7 +165,7 @@ export default function StepThreeMedicalDetails({
                 <button
                   key={option}
                   type="button"
-                  onClick={() => setFormData({ ...formData, hasDiagnosis: option })}
+                  onClick={() => setFormData((prev) => ({ ...prev, hasDiagnosis: option }))}
                   className={`px-5 py-2 rounded-full text-xs font-semibold transition-all border ${
                     formData.hasDiagnosis === option
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
@@ -126,7 +187,7 @@ export default function StepThreeMedicalDetails({
               type="text"
               name="diagnosis"
               value={formData.diagnosis}
-              onChange={(e) => setFormData({ ...formData, diagnosis: e.target.value })}
+              onChange={(e) => setFormData((prev) => ({ ...prev, diagnosis: e.target.value }))}
               placeholder="e.g. Coronary artery disease"
               className="w-full px-3.5 py-2.5 rounded-lg border border-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 placeholder:text-slate-400 text-slate-800"
             />
@@ -142,7 +203,7 @@ export default function StepThreeMedicalDetails({
                 <button
                   key={status}
                   type="button"
-                  onClick={() => setFormData({ ...formData, treatmentStatus: status })}
+                  onClick={() => setFormData((prev) => ({ ...prev, treatmentStatus: status }))}
                   className={`px-4 py-2 rounded-full text-xs font-semibold transition-all border ${
                     formData.treatmentStatus === status
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
@@ -162,16 +223,18 @@ export default function StepThreeMedicalDetails({
           <button
             type="button"
             onClick={onBack}
-            className="text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors flex items-center gap-1"
+            disabled={loading}
+            className="text-sm font-bold text-blue-900 hover:text-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
           >
             ← Back
           </button>
           <button
-            type="button"
-            onClick={handleSubmit}
-            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm"
+            type="submit"
+            form="step-three-form"
+            disabled={loading}
+            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm"
           >
-            Continue
+            {loading ? 'Saving...' : 'Continue'}
           </button>
         </div>
       </div>

@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Check, Plus, File, X } from 'lucide-react';
+import { Check, Plus, File, X, Loader2 } from 'lucide-react';
+import { createBrowserClient } from '@supabase/ssr';
 
 const STEPS = [
   { id: 1, label: 'About You' },
@@ -12,15 +13,27 @@ const STEPS = [
   { id: 6, label: 'Consent' },
 ];
 
+interface StepFourProps {
+  onNext?: (data: any) => void;
+  onBack?: () => void;
+  caseId?: string;
+}
+
 export default function StepFourDocuments({
   onNext,
   onBack,
-}: {
-  onNext?: (data: any) => void;
-  onBack?: () => void;
-}) {
+  caseId,
+}: StepFourProps) {
+  const supabase = createBrowserClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
   const [files, setFiles] = useState<File[]>([]);
   const [isDragging, setIsDragging] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string | null>(null);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -40,9 +53,78 @@ export default function StepFourDocuments({
     setFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (onNext) onNext({ files });
+    setErrorMsg(null);
+    setLoading(true);
+
+    try {
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError || !user) {
+        throw new Error('User session not found. Please re-authenticate.');
+      }
+
+      if (!caseId) {
+        throw new Error('Missing case context. Please complete step 2 first.');
+      }
+
+      const uploadedFilesMetaData: Array<{ name: string; path: string; size: number }> = [];
+
+      // Upload each file to Supabase Storage bucket 'case-documents'
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        setUploadProgress(`Uploading file ${i + 1} of ${files.length}: ${file.name}`);
+
+        const fileExt = file.name.split('.').pop();
+        const filePath = `${user.id}/${caseId}/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from('case-documents')
+          .upload(filePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+        }
+
+        uploadedFilesMetaData.push({
+          name: file.name,
+          path: filePath,
+          size: file.size,
+        });
+      }
+
+      // Record documents metadata in database if files were uploaded
+      if (uploadedFilesMetaData.length > 0) {
+        const documentRecords = uploadedFilesMetaData.map((meta) => ({
+          case_id: caseId,
+          user_id: user.id,
+          file_name: meta.name,
+          storage_path: meta.path,
+          file_size: meta.size,
+        }));
+
+        const { error: dbError } = await supabase
+          .from('case_documents')
+          .insert(documentRecords);
+
+        if (dbError) throw dbError;
+      }
+
+      if (onNext) {
+        onNext({
+          caseId,
+          documentsUploaded: uploadedFilesMetaData,
+        });
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'An error occurred during file upload.');
+    } finally {
+      setLoading(false);
+      setUploadProgress(null);
+    }
   };
 
   return (
@@ -62,7 +144,6 @@ export default function StepFourDocuments({
         {/* Stepper Header Bar */}
         <div className="pt-8 pb-10">
           <div className="flex items-center justify-between relative max-w-2xl mx-auto px-2">
-            {/* Horizontal Line */}
             <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0" />
 
             {STEPS.map((step) => {
@@ -98,6 +179,19 @@ export default function StepFourDocuments({
 
       {/* Form Content Card */}
       <div className="max-w-2xl mx-auto space-y-6">
+        {errorMsg && (
+          <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-red-600 text-xs font-medium text-center">
+            {errorMsg}
+          </div>
+        )}
+
+        {uploadProgress && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 text-xs font-medium flex items-center justify-center gap-2">
+            <Loader2 className="w-4 h-4 animate-spin text-emerald-600" />
+            <span>{uploadProgress}</span>
+          </div>
+        )}
+
         <div className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
           
           <div className="space-y-1">
@@ -124,9 +218,10 @@ export default function StepFourDocuments({
             <input
               type="file"
               multiple
+              disabled={loading}
               onChange={handleFileChange}
               accept=".pdf,.jpg,.jpeg,.png,.heic,.docx,.mp4,.mov"
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
             />
 
             <div className="w-10 h-10 rounded-full border border-slate-200 flex items-center justify-center bg-white text-emerald-600 shadow-sm pointer-events-none">
@@ -157,8 +252,9 @@ export default function StepFourDocuments({
                     </div>
                     <button
                       type="button"
+                      disabled={loading}
                       onClick={() => removeFile(idx)}
-                      className="text-slate-400 hover:text-red-500 p-1"
+                      className="text-slate-400 hover:text-red-500 p-1 disabled:opacity-50"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -179,16 +275,19 @@ export default function StepFourDocuments({
           <button
             type="button"
             onClick={onBack}
-            className="text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors flex items-center gap-1"
+            disabled={loading}
+            className="text-sm font-bold text-blue-900 hover:text-blue-700 disabled:opacity-50 transition-colors flex items-center gap-1"
           >
             ← Back
           </button>
           <button
             type="button"
             onClick={handleSubmit}
-            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm"
+            disabled={loading}
+            className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm flex items-center gap-2"
           >
-            Continue
+            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {loading ? 'Uploading...' : 'Continue'}
           </button>
         </div>
       </div>

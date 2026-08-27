@@ -15,17 +15,56 @@ export default function PatientLoginForm() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  /**
+   * Helper function to verify if the authenticated user has completed
+   * a consultation form before sending them to the dashboard.
+   */
+  const routeUserAfterAuth = async (userId: string) => {
+    try {
+      const { data: userCase, error } = await supabase
+        .from('cases')
+        .select('id, stage, user_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        // Detailed log to trace RLS / Database column issues
+        console.error('Supabase Case Query Error:', {
+          message: error.message,
+          code: error.code,
+          details: error.details,
+          hint: error.hint,
+        });
+        
+        // If an RLS or database error occurs, redirect to consultation intake
+        router.push('/consultation');
+        return;
+      }
+
+      // If no case exists for this user, send them to fill the form
+      if (!userCase) {
+        router.push('/consultation');
+      } else {
+        router.push('/dashboard');
+      }
+      router.refresh();
+    } catch (err: any) {
+      console.error('Error verifying consultation status:', err?.message || err);
+      router.push('/consultation');
+    }
+  };
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setErrorMessage(null);
 
     const cleanIdentifier = identifier.trim();
-
-    // Detect if input is a phone number (no @ symbol, contains digits/plus)
     const isPhone = /^[+\d\s-]+$/.test(cleanIdentifier) && !cleanIdentifier.includes('@');
 
-    const { error } = await supabase.auth.signInWithPassword(
+    const { data, error } = await supabase.auth.signInWithPassword(
       isPhone
         ? { phone: cleanIdentifier, password }
         : { email: cleanIdentifier, password }
@@ -41,15 +80,16 @@ export default function PatientLoginForm() {
       return;
     }
 
-    router.push('/dashboard');
-    router.refresh();
+    if (data.user) {
+      await routeUserAfterAuth(data.user.id);
+    }
   };
 
   const handleDemoLogin = async () => {
     setLoading(true);
     setErrorMessage(null);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email: 'demo@healingways.com',
       password: 'DemoPassword123!',
     });
@@ -59,8 +99,9 @@ export default function PatientLoginForm() {
       return;
     }
 
-    router.push('/dashboard');
-    router.refresh();
+    if (data.user) {
+      await routeUserAfterAuth(data.user.id);
+    }
   };
 
   return (
@@ -130,7 +171,7 @@ export default function PatientLoginForm() {
             disabled={loading}
             className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm transition-colors disabled:opacity-50 flex justify-center items-center"
           >
-            {loading ? 'Signing in...' : 'Login'}
+            {loading ? 'Verifying account...' : 'Login'}
           </button>
         </form>
 
@@ -158,14 +199,14 @@ export default function PatientLoginForm() {
           </button>
         </div>
 
-        {/* Sign Up Link */}
+        {/* Sign Up Link: Redirects to consultation form */}
         <div className="text-center text-xs text-gray-500 pt-2">
           New to HealingWays?{' '}
           <Link
-            href="/signup"
+            href="/consultation"
             className="font-bold text-blue-900 hover:underline transition-all"
           >
-            Create an account
+            Start Consultation Form
           </Link>
         </div>
 
