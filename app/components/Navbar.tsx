@@ -55,7 +55,7 @@ export default function Navbar() {
               href="/login"
               className="text-sm font-bold text-blue-900 hover:text-blue-700 transition-colors"
             >
-              Patient Login
+              Patient Portal
             </Link>
             <Link
               href="/consultation"
@@ -97,7 +97,7 @@ export default function Navbar() {
               onClick={() => setMobileMenuOpen(false)}
               className="text-center py-2 text-base font-bold text-blue-900"
             >
-              Patient Login
+              Patient Portal
             </Link>
             <Link
               href="#consultation"

@@ -2,13 +2,16 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Plus, File, X, Loader2 } from 'lucide-react';
+import { Check, Plus, File as FileIcon, X, Loader2 } from 'lucide-react';
+import { createClient } from '@supabase/supabase-js';
 import StepSevenSuccess from './_components/stepSevenSuccess';
-import { createClient } from '../utils/supabase/client';
 
-// ==========================================
-// CONSTANTS & TYPES
-// ==========================================
+// Initialize Supabase Client
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+);
+
 const STEPS = [
   { id: 1, label: 'About You' },
   { id: 2, label: 'Your Situation' },
@@ -19,7 +22,6 @@ const STEPS = [
 ];
 
 interface FormDataState {
-  // Step 1
   consultationFor: string;
   fullName: string;
   email: string;
@@ -27,21 +29,16 @@ interface FormDataState {
   country: string;
   password: string;
   confirmPassword: string;
-  // Step 2
   supportType: string;
   healthcareArea: string;
   situationDescription: string;
-  // Step 3
   hasDiagnosis: string;
   diagnosis: string;
   treatmentStatus: string;
-  // Step 4
   files: File[];
-  // Step 5
   careOutsideCountry: string;
   preferredLocation: string;
   priorities: string[];
-  // Step 6
   confirmAccurate: boolean;
   consentReview: boolean;
   understandDisclaimer: boolean;
@@ -70,9 +67,6 @@ const initialFormData: FormDataState = {
   understandDisclaimer: false,
 };
 
-// ==========================================
-// SHARED STEPPER & HEADER COMPONENT
-// ==========================================
 function StepHeader({ currentStep }: { currentStep: number }) {
   if (currentStep === 7) return null;
 
@@ -82,17 +76,15 @@ function StepHeader({ currentStep }: { currentStep: number }) {
         Start Your Healthcare Journey
       </span>
       <h1 className="text-3xl sm:text-4xl font-extrabold text-blue-950 tracking-tight">
-        Let&apos;s understand how we can support you.
+        Let's understand how we can support you.
       </h1>
       <p className="text-slate-500 text-sm sm:text-base max-w-xl mx-auto">
         Every healthcare journey is different. Share some details, and our team will review your needs and guide you toward next steps. Takes about 5 minutes.
       </p>
 
-      {/* Stepper Header Bar */}
       <div className="pt-8 pb-10">
         <div className="flex items-center justify-between relative max-w-2xl mx-auto px-2">
           <div className="absolute top-4 left-6 right-6 h-0.5 bg-slate-200 -z-0" />
-
           {STEPS.map((step) => {
             const isCompleted = step.id < currentStep;
             const isActive = step.id === currentStep;
@@ -126,37 +118,53 @@ function StepHeader({ currentStep }: { currentStep: number }) {
   );
 }
 
-// ==========================================
-// MAIN PAGE WIZARD COMPONENT
-// ==========================================
 export default function ConsultationPage() {
   const router = useRouter();
-  const supabase = createClient();
-
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [formData, setFormData] = useState<FormDataState>(initialFormData);
-  const [generatedCaseId, setGeneratedCaseId] = useState<string>('');
-  
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [generatedCaseNumber, setGeneratedCaseNumber] = useState<string>('');
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
 
   const nextStep = () => setCurrentStep((prev) => Math.min(prev + 1, 7));
   const prevStep = () => setCurrentStep((prev) => Math.max(prev - 1, 1));
   const goToStep = (step: number) => setCurrentStep(step);
 
+  // Helper function to resolve exact MIME types if browser defaults to empty or octet-stream
+  const getMimeType = (file: File) => {
+    if (file.type && file.type !== 'application/octet-stream') return file.type;
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    switch (ext) {
+      case 'pdf':
+        return 'application/pdf';
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'heic':
+        return 'image/heic';
+      case 'docx':
+        return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      case 'doc':
+        return 'application/msword';
+      case 'mp4':
+        return 'video/mp4';
+      case 'mov':
+        return 'video/quicktime';
+      default:
+        return file.type || 'application/octet-stream';
+    }
+  };
+
   const handleFinalSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-
-    if (formData.password !== formData.confirmPassword) {
-      setSubmitError('Passwords do not match. Please check step 1.');
-      return;
-    }
-
     setIsSubmitting(true);
-    setSubmitError(null);
+    setErrorMessage('');
 
     try {
-      // 1. Sign up user account & assign profile metadata
+      // 1. Authenticate / Sign Up User
+      let userId: string;
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -169,65 +177,97 @@ export default function ConsultationPage() {
         },
       });
 
-      if (authError) throw new Error(`Account setup failed: ${authError.message}`);
-      
-      const userId = authData.user?.id;
-      if (!userId) throw new Error('User creation failed. Please try again.');
+      if (authError) throw authError;
 
-      // 2. Generate unique Case Number
+      if (authData.user) {
+        userId = authData.user.id;
+      } else {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session?.user) {
+          throw new Error('Authentication failed. Please verify your credentials or email.');
+        }
+        userId = sessionData.session.user.id;
+      }
+
+      // 2. Insert / Sync User Profile Record (public.profiles)
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .upsert({
+          id: userId,
+          email: formData.email,
+          full_name: formData.fullName,
+          phone: formData.phone,
+          country: formData.country,
+        });
+
+      if (profileError) throw profileError;
+
+      // 3. Create Case Record (public.cases)
       const randomCaseNum = Math.floor(100000 + Math.random() * 900000);
-      const caseIdStr = `HW-2026-${randomCaseNum}`;
+      const caseNumberString = `HW-2026-${randomCaseNum}`;
 
-      // 3. Insert record into public.cases table
-      const { data: newCase, error: caseError } = await supabase
+      const { data: caseRecord, error: caseError } = await supabase
         .from('cases')
         .insert({
           user_id: userId,
-          case_number: caseIdStr,
+          case_number: caseNumberString,
           consultation_for: formData.consultationFor,
           support_type: formData.supportType,
-          healthcare_area: formData.healthcareArea,
+          healthcare_area: formData.healthcareArea || null,
           situation_description: formData.situationDescription,
           has_diagnosis: formData.hasDiagnosis,
-          diagnosis: formData.diagnosis,
+          diagnosis: formData.diagnosis || null,
           treatment_status: formData.treatmentStatus,
           care_outside_country: formData.careOutsideCountry,
           preferred_location: formData.preferredLocation,
           priorities: formData.priorities,
+          confirmed_accurate: formData.confirmAccurate,
+          consented_at: formData.consentReview ? new Date().toISOString() : null,
           stage: 'Case Review',
         })
-        .select('id')
+        .select()
         .single();
 
-      if (caseError) throw new Error(`Failed to save case details: ${caseError.message}`);
+      if (caseError) throw caseError;
 
-      // 4. Upload files to Storage Bucket and save metadata in public.documents
-      if (formData.files.length > 0 && newCase) {
+      // 4. Upload Attached Documents to Storage & Insert into public.documents
+      if (formData.files.length > 0) {
         for (const file of formData.files) {
-          const filePath = `${userId}/${Date.now()}_${file.name}`;
+          const fileExt = file.name.split('.').pop();
+          const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`;
+          const filePath = `${userId}/${caseRecord.id}/${fileName}`;
+          const resolvedMimeType = getMimeType(file);
 
+          // Upload to patient-documents bucket with explicit contentType header
           const { error: uploadError } = await supabase.storage
             .from('patient-documents')
-            .upload(filePath, file);
+            .upload(filePath, file, {
+              contentType: resolvedMimeType,
+              upsert: false,
+            });
 
-          if (!uploadError) {
-            await supabase.from('documents').insert({
+          if (uploadError) throw uploadError;
+
+          // Insert reference record into public.documents table
+          const { error: docTableError } = await supabase
+            .from('documents')
+            .insert({
               user_id: userId,
-              case_id: newCase.id,
+              case_id: caseRecord.id,
               name: file.name,
               file_path: filePath,
               file_size: file.size,
-              mime_type: file.type,
+              mime_type: resolvedMimeType,
             });
-          }
+
+          if (docTableError) throw docTableError;
         }
       }
 
-      setGeneratedCaseId(caseIdStr);
+      setGeneratedCaseNumber(caseNumberString);
       setCurrentStep(7);
     } catch (err: any) {
-      console.error('Submission error:', err);
-      setSubmitError(err.message || 'An unexpected error occurred during submission.');
+      setErrorMessage(err.message || 'An unexpected error occurred during submission.');
     } finally {
       setIsSubmitting(false);
     }
@@ -237,13 +277,8 @@ export default function ConsultationPage() {
     return (
       <StepSevenSuccess
         userName={formData.fullName || 'Patient'}
-        caseId={generatedCaseId}
-        onGoToLogin={() => {
-          window.location.href = '/login';
-        }}
-        onGoHome={() => {
-          window.location.href = '/';
-        }}
+        caseId={generatedCaseNumber}
+        onGoHome={() => router.push('/')}
       />
     );
   }
@@ -258,10 +293,20 @@ export default function ConsultationPage() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              if (formData.password !== formData.confirmPassword) {
+                setErrorMessage('Passwords do not match');
+                return;
+              }
+              setErrorMessage('');
               nextStep();
             }}
             className="space-y-6"
           >
+            {errorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-medium">
+                {errorMessage}
+              </div>
+            )}
             <div className="space-y-2">
               <label className="block text-xs font-bold text-slate-800 uppercase tracking-wide">
                 Who is this consultation for? <span className="text-red-500">*</span>
@@ -355,6 +400,7 @@ export default function ConsultationPage() {
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   placeholder="At least 8 characters"
@@ -368,6 +414,7 @@ export default function ConsultationPage() {
                 <input
                   type="password"
                   required
+                  minLength={8}
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                   placeholder="Re-enter your password"
@@ -377,13 +424,13 @@ export default function ConsultationPage() {
             </div>
 
             <p className="text-xs text-slate-400 font-medium pt-1">
-              We&apos;ll use this to set up your HealingWays account, so you can come back and track this case any time.
+              We'll use this to set up your HealingWays account, so you can come back and track this case any time.
             </p>
 
             <div className="flex justify-center pt-4">
               <button
                 type="submit"
-                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm cursor-pointer"
+                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg transition-colors shadow-sm"
               >
                 Continue
               </button>
@@ -453,7 +500,7 @@ export default function ConsultationPage() {
                 Tell us about your healthcare situation <span className="text-red-500">*</span>
               </label>
               <p className="text-xs text-slate-500">
-                Share what you&apos;re experiencing, your diagnosis if available, and what support you&apos;re looking for.
+                Share what you're experiencing, your diagnosis if available, and what support you're looking for.
               </p>
               <textarea
                 rows={4}
@@ -469,7 +516,7 @@ export default function ConsultationPage() {
               <button type="button" onClick={prevStep} className="text-sm font-bold text-blue-900 hover:text-blue-700">
                 ← Back
               </button>
-              <button type="submit" className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm cursor-pointer">
+              <button type="submit" className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm">
                 Continue
               </button>
             </div>
@@ -543,7 +590,7 @@ export default function ConsultationPage() {
             <button type="button" onClick={prevStep} className="text-sm font-bold text-blue-900 hover:text-blue-700">
               ← Back
             </button>
-            <button type="button" onClick={nextStep} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm cursor-pointer">
+            <button type="button" onClick={nextStep} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm">
               Continue
             </button>
           </div>
@@ -594,7 +641,7 @@ export default function ConsultationPage() {
                   {formData.files.map((file, idx) => (
                     <div key={idx} className="flex items-center justify-between p-2.5 bg-slate-50 rounded-lg border border-slate-200 text-xs">
                       <div className="flex items-center gap-2 truncate">
-                        <File className="w-4 h-4 text-slate-500 shrink-0" />
+                        <FileIcon className="w-4 h-4 text-slate-500 shrink-0" />
                         <span className="font-medium text-slate-700 truncate">{file.name}</span>
                       </div>
                       <button
@@ -619,7 +666,7 @@ export default function ConsultationPage() {
             <button type="button" onClick={prevStep} className="text-sm font-bold text-blue-900 hover:text-blue-700">
               ← Back
             </button>
-            <button type="button" onClick={nextStep} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm cursor-pointer">
+            <button type="button" onClick={nextStep} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm">
               Continue
             </button>
           </div>
@@ -709,7 +756,7 @@ export default function ConsultationPage() {
             <button type="button" onClick={prevStep} className="text-sm font-bold text-blue-900 hover:text-blue-700">
               ← Back
             </button>
-            <button type="button" onClick={nextStep} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm cursor-pointer">
+            <button type="button" onClick={nextStep} className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm">
               Continue
             </button>
           </div>
@@ -720,6 +767,11 @@ export default function ConsultationPage() {
       {currentStep === 6 && (
         <div className="max-w-2xl mx-auto space-y-6">
           <form onSubmit={handleFinalSubmit} className="bg-white border border-slate-200/80 rounded-2xl p-6 sm:p-8 shadow-sm space-y-6">
+            {errorMessage && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-xs text-red-600 font-medium">
+                {errorMessage}
+              </div>
+            )}
             <div className="bg-emerald-50/60 border border-emerald-100 rounded-xl p-5 sm:p-6 space-y-5 text-xs text-slate-600">
               <h3 className="text-sm font-bold text-slate-800">Review your information</h3>
 
@@ -738,7 +790,7 @@ export default function ConsultationPage() {
                 <button type="button" onClick={() => goToStep(2)} className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700">Edit</button>
                 <p><strong className="font-semibold text-slate-700">Looking for:</strong> {formData.supportType}</p>
                 <p><strong className="font-semibold text-slate-700">Area:</strong> {formData.healthcareArea || '—'}</p>
-                {formData.situationDescription && <p className="italic text-slate-500">&quot;{formData.situationDescription}&quot;</p>}
+                {formData.situationDescription && <p className="italic text-slate-500">"{formData.situationDescription}"</p>}
               </div>
 
               <hr className="border-emerald-100/80" />
@@ -755,30 +807,22 @@ export default function ConsultationPage() {
               <div className="space-y-1 relative pr-12">
                 <span className="font-bold text-slate-700 uppercase tracking-wide text-[11px]">DOCUMENTS</span>
                 <button type="button" onClick={() => goToStep(4)} className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700">Edit</button>
-                <p>{formData.files.length > 0 ? `${formData.files.length} file(s) attached` : 'None attached'}</p>
-              </div>
-
-              <hr className="border-emerald-100/80" />
-
-              <div className="space-y-1 relative pr-12">
-                <span className="font-bold text-slate-700 uppercase tracking-wide text-[11px]">PREFERENCES</span>
-                <button type="button" onClick={() => goToStep(5)} className="absolute top-0 right-0 font-bold text-blue-900 hover:text-blue-700">Edit</button>
-                <p><strong className="font-semibold text-slate-700">Open to care abroad:</strong> {formData.careOutsideCountry}</p>
-                <p><strong className="font-semibold text-slate-700">Preferred location:</strong> {formData.preferredLocation}</p>
-                <p><strong className="font-semibold text-slate-700">What matters most:</strong> {formData.priorities.join(', ')}</p>
+                <p>{formData.files.length > 0 ? `${formData.files.length} file(s) attached` : 'None uploaded'}</p>
               </div>
             </div>
 
-            <div className="space-y-4 pt-2">
+            <div className="space-y-3 pt-2">
               <label className="flex items-start gap-3 cursor-pointer">
                 <input
                   type="checkbox"
                   required
                   checked={formData.confirmAccurate}
                   onChange={(e) => setFormData({ ...formData, confirmAccurate: e.target.checked })}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
-                <span className="text-xs text-slate-700">I confirm the information provided is accurate to the best of my knowledge.</span>
+                <span className="text-xs text-slate-600">
+                  I confirm the details provided are accurate to the best of my knowledge.
+                </span>
               </label>
 
               <label className="flex items-start gap-3 cursor-pointer">
@@ -787,55 +831,30 @@ export default function ConsultationPage() {
                   required
                   checked={formData.consentReview}
                   onChange={(e) => setFormData({ ...formData, consentReview: e.target.checked })}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
                 />
-                <span className="text-xs text-slate-700">I consent to HealingWays reviewing my case and contacting me with guidance.</span>
-              </label>
-
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  required
-                  checked={formData.understandDisclaimer}
-                  onChange={(e) => setFormData({ ...formData, understandDisclaimer: e.target.checked })}
-                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                />
-                <span className="text-xs text-slate-700">I understand that HealingWays provides care navigation and guidance, not direct medical diagnosis.</span>
+                <span className="text-xs text-slate-600">
+                  I consent to HealingWays reviewing my case and sharing relevant details with trusted medical partners.
+                </span>
               </label>
             </div>
 
-            {submitError && (
-              <p className="text-xs font-semibold text-red-600 bg-red-50 p-3 rounded-lg border border-red-200">
-                {submitError}
-              </p>
-            )}
-
             <div className="flex items-center justify-between pt-4">
-              <button
-                type="button"
-                onClick={prevStep}
-                disabled={isSubmitting}
-                className="text-sm font-bold text-blue-900 hover:text-blue-700 disabled:opacity-50"
-              >
+              <button type="button" onClick={prevStep} className="text-sm font-bold text-blue-900 hover:text-blue-700">
                 ← Back
               </button>
               <button
                 type="submit"
-                disabled={
-                  isSubmitting ||
-                  !formData.confirmAccurate ||
-                  !formData.consentReview ||
-                  !formData.understandDisclaimer
-                }
-                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-lg transition-colors shadow-sm inline-flex items-center gap-2 cursor-pointer"
+                disabled={isSubmitting}
+                className="px-8 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 disabled:opacity-50"
               >
                 {isSubmitting ? (
                   <>
                     <Loader2 className="w-4 h-4 animate-spin" />
-                    Submitting Case...
+                    Submitting...
                   </>
                 ) : (
-                  'Submit Consultation'
+                  'Submit Request'
                 )}
               </button>
             </div>
