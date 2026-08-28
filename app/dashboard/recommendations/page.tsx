@@ -8,10 +8,11 @@ import {
   PlusSquare, 
   ArrowRight 
 } from 'lucide-react';
+import HealthcareStepper from '../_components/HealthcareStepper';
 
 export default function RecommendationsPage() {
   return (
-    <div className="p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full">
+    <div className="p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full font-sans">
       
       {/* Greeting & Action Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -19,13 +20,13 @@ export default function RecommendationsPage() {
           <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 leading-tight">
             Hospital Recommendations
           </h1>
-          <p className="text-xs sm:text-sm text-gray-500 mt-1">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Case HW-2026-531971 · Last updated Today
           </p>
         </div>
         <Link 
           href="/dashboard/consultation/new"
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-sm transition-colors w-full sm:w-auto"
+          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-colors w-full sm:w-auto"
         >
           <Plus className="w-4 h-4" />
           New Consultation
@@ -35,7 +36,7 @@ export default function RecommendationsPage() {
       {/* Promotional / Announcement Banner */}
       <div className="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-start sm:items-center gap-3">
-          <Send className="w-4 h-4 text-emerald-600 rotate-45 flex-shrink-0 mt-0.5 sm:mt-0" />
+          <Send className="w-4 h-4 text-emerald-600 rotate-45 shrink-0 mt-0.5 sm:mt-0" />
           <span className="text-xs sm:text-sm text-slate-800 font-medium leading-normal">
             <strong className="font-semibold text-slate-900">New:</strong> Flight Booking & Scheduling — save up to 5% on all flights.
           </span>
@@ -48,8 +49,11 @@ export default function RecommendationsPage() {
         </Link>
       </div>
 
+      {/* Reusable Healthcare Stepper */}
+      <HealthcareStepper />
+
       {/* Main Empty State / Preparation Box */}
-      <div className="bg-white border border-gray-100 rounded-2xl p-8 sm:p-12 text-center shadow-sm space-y-4">
+      <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 text-center shadow-xs space-y-4">
         <div className="w-12 h-12 rounded-full bg-emerald-100/60 text-emerald-600 flex items-center justify-center mx-auto">
           <PlusSquare className="w-6 h-6" />
         </div>
@@ -57,7 +61,7 @@ export default function RecommendationsPage() {
           Your recommendations are being prepared
         </h3>
         <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-          Our clinical advisors are still reviewing your case. We'll notify you as soon as they're ready.
+          Our clinical advisors are still reviewing your case. We&apos;ll notify you as soon as they&apos;re ready.
         </p>
       </div>
 
@@ -65,9 +69,9 @@ export default function RecommendationsPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
         
         {/* Assigned Care Coordinator Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5 flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 sm:space-y-5 flex flex-col justify-between">
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
               ASSIGNED CARE COORDINATOR
             </span>
             <div className="flex items-center gap-3">
@@ -76,10 +80,10 @@ export default function RecommendationsPage() {
               </div>
               <div>
                 <h4 className="text-sm font-bold text-blue-900">Sarah James</h4>
-                <p className="text-xs text-gray-500">Patient Care Coordinator</p>
+                <p className="text-xs text-slate-500">Patient Care Coordinator</p>
               </div>
             </div>
-            <p className="text-xs text-gray-500">Available Monday–Friday, 9:00 AM–5:00 PM</p>
+            <p className="text-xs text-slate-500">Available Monday–Friday, 9:00 AM–5:00 PM</p>
           </div>
           <Link 
             href="/dashboard/messages"
@@ -90,28 +94,28 @@ export default function RecommendationsPage() {
         </div>
 
         {/* Case Summary Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 sm:space-y-5">
-          <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 sm:space-y-5">
+          <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
             CASE SUMMARY
           </span>
-          <div className="space-y-2 text-xs text-gray-600">
-            <p><strong className="text-slate-800 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-800 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
-            <p><strong className="text-slate-800 font-semibold">Stage:</strong> Hospital Recommendation</p>
-            <p><strong className="text-slate-800 font-semibold">Started:</strong> Today</p>
+          <div className="space-y-2 text-xs text-slate-600">
+            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> HW-2026-531971</p>
+            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
+            <p><strong className="text-slate-900 font-semibold">Stage:</strong> Hospital Recommendation</p>
+            <p><strong className="text-slate-900 font-semibold">Started:</strong> Today</p>
           </div>
         </div>
 
         {/* Recent Messages Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
               RECENT MESSAGES
             </span>
-            <p className="text-xs text-gray-600 italic leading-relaxed">
+            <p className="text-xs text-slate-600 italic leading-relaxed">
               &quot;Good question. Let me confirm the details with our clinical advisor and follow up within t...&quot;
             </p>
-            <p className="text-[11px] text-gray-400">Sarah James · Just now</p>
+            <p className="text-[11px] text-slate-400">Sarah James · Just now</p>
           </div>
           <Link
             href="/dashboard/messages"
@@ -122,14 +126,14 @@ export default function RecommendationsPage() {
         </div>
 
         {/* Documents Card */}
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4 flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
           <div className="space-y-4">
-            <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+            <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
               DOCUMENTS
             </span>
-            <div className="space-y-1 text-xs text-gray-600">
+            <div className="space-y-1 text-xs text-slate-600">
               <p>1 document on file</p>
-              <p className="text-gray-400">0 under review</p>
+              <p className="text-slate-400">0 under review</p>
             </div>
           </div>
           <Link
@@ -143,8 +147,8 @@ export default function RecommendationsPage() {
       </div>
 
       {/* Quick Actions Row */}
-      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-gray-100 shadow-sm space-y-4">
-        <span className="text-xs font-bold uppercase tracking-wider text-blue-600">
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+        <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
           QUICK ACTIONS
         </span>
         <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-2.5 sm:gap-3">

@@ -13,6 +13,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { createClient } from '../../utils/supabase/client';
+import HealthcareStepper from '../_components/HealthcareStepper';
 
 interface PatientCaseDetails {
   id: string;
@@ -186,39 +187,8 @@ export default function PatientCaseReviewPage() {
         </div>
       </div>
 
-      {/* Visual Case Progress Tracker */}
-      <div className="p-5 sm:p-6 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
-        <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
-          CASE PROGRESS
-        </span>
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 pt-2">
-          {STAGES.map((stageName, index) => {
-            const isCompleted = index < currentStageIndex;
-            const isCurrent = index === currentStageIndex;
-
-            return (
-              <div 
-                key={stageName}
-                className={`p-3 rounded-xl border flex flex-col justify-between space-y-2 ${
-                  isCurrent 
-                    ? 'bg-blue-50 border-blue-900 text-blue-900' 
-                    : isCompleted 
-                    ? 'bg-slate-50 border-emerald-300 text-emerald-800' 
-                    : 'bg-slate-50 border-slate-200 text-slate-400'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase">Step 0{index + 1}</span>
-                  {isCompleted && <CheckCircle2 className="w-4 h-4 text-emerald-600" />}
-                  {isCurrent && <Clock className="w-4 h-4 text-blue-900 animate-pulse" />}
-                </div>
-                <p className="text-xs font-bold leading-snug">{stageName}</p>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-
+      {/* Reusable Healthcare Stepper */}
+      <HealthcareStepper />
       {/* Case Overview Alert Box */}
       <div className="p-5 sm:p-6 bg-amber-50/60 border border-amber-200 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="space-y-1">
