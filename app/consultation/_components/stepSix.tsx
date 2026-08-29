@@ -121,14 +121,16 @@ export default function StepSixConsent({
 
       const timestamp = new Date().toISOString();
 
-      // 2. Persist consent flags & finalize case submission status
+      // 2. Persist consent flags & finalize case submission status.
+      // `status` is left untouched (stays 'New') — `submitted_at` is what
+      // now marks this case as a completed submission rather than an
+      // abandoned draft. See migration_add_intake_fields.sql for why.
       const { error: dbError } = await supabase
         .from('cases')
         .update({
           consent_accurate: consent.confirmAccurate,
           consent_review: consent.consentReview,
           consent_disclaimer: consent.understandDisclaimer,
-          status: 'submitted',
           submitted_at: timestamp,
           updated_at: timestamp,
         })

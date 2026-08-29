@@ -1,16 +1,86 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   Bell, 
   Plus, 
   Send, 
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 import HealthcareStepper from '../_components/HealthcareStepper';
 
+interface TreatmentUpdate {
+  id: string;
+  update_title: string;
+  update_content: string;
+  created_at: string;
+}
+
 export default function TreatmentRecoveryPage() {
+  const supabase = createClient();
+
+  const [loading, setLoading] = useState(true);
+  const [caseId, setCaseId] = useState<string | null>(null);
+  const [caseNumber, setCaseNumber] = useState<string>('HW-2026-531971');
+  const [need, setNeed] = useState<string>('Not sure, I need guidance');
+  const [updates, setUpdates] = useState<TreatmentUpdate[]>([]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: caseData } = await supabase
+        .from('cases')
+        .select('id, case_number, need')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!caseData) {
+        setLoading(false);
+        return;
+      }
+
+      setCaseId(caseData.id);
+      setCaseNumber(caseData.case_number || caseNumber);
+      setNeed(caseData.need || need);
+
+      const { data: updatesData } = await supabase
+        .from('treatment_updates')
+        .select('id, update_title, update_content, created_at')
+        .eq('case_id', caseData.id)
+        .order('created_at', { ascending: false });
+
+      setUpdates(updatesData || []);
+    } catch (err) {
+      console.error('Error loading treatment updates:', err);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12 min-h-[400px]">
+        <Loader2 className="w-6 h-6 text-blue-900 animate-spin mr-2" />
+        <span className="text-sm font-medium text-slate-600">Loading your treatment updates...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 bg-slate-50/50 min-h-screen p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full font-sans">
       
@@ -45,7 +115,7 @@ export default function TreatmentRecoveryPage() {
             Good to see you, Amara.
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Case HW-2026-531971 · Last updated Today
+            Case {caseNumber} · Last updated Today
           </p>
         </div>
         <Link 
@@ -92,17 +162,34 @@ export default function TreatmentRecoveryPage() {
         </Link>
       </div>
 
-      {/* Coordinator Note */}
-      <div className="bg-white border-l-4 border-l-emerald-600 p-5 sm:p-6 rounded-r-2xl border border-slate-200 shadow-xs space-y-2">
+      {/* Treatment Updates Feed */}
+      <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
         <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
-          CASE REVIEW FROM YOUR COORDINATOR
+          UPDATES FROM YOUR CARE TEAM
         </span>
-        <p className="text-xs sm:text-sm text-slate-800 break-words leading-relaxed font-medium">
-          We are actively coordinating with your clinical team to monitor your post-treatment progress. Please let us know if you need any extra care assistance.
-        </p>
-        <p className="text-[11px] text-slate-400 font-medium pt-1">
-          Sarah James · Just now
-        </p>
+        {updates.length === 0 ? (
+          <p className="text-xs sm:text-sm text-slate-500">
+            We are actively coordinating with your clinical team to monitor your post-treatment progress. Updates will appear here as they're posted.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {updates.map((u) => (
+              <div key={u.id} className="border-l-4 border-l-emerald-600 pl-4 py-1">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <h4 className="text-sm font-bold text-slate-900">{u.update_title}</h4>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {new Date(u.created_at).toLocaleString('en-GB', {
+                      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit'
+                    })}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm text-slate-700 leading-relaxed mt-1 whitespace-pre-line">
+                  {u.update_content}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* 2x2 Grid Section */}
@@ -139,8 +226,8 @@ export default function TreatmentRecoveryPage() {
             CASE SUMMARY
           </span>
           <div className="space-y-2 text-xs text-slate-600">
-            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
+            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> {caseNumber}</p>
+            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> {need}</p>
             <p><strong className="text-slate-900 font-semibold">Stage:</strong> Treatment & Recovery</p>
             <p><strong className="text-slate-900 font-semibold">Started:</strong> Today</p>
           </div>

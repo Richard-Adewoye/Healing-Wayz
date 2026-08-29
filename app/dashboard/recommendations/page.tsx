@@ -1,16 +1,124 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
   Send, 
   PlusSquare, 
-  ArrowRight 
+  ArrowRight,
+  Loader2,
+  CheckCircle2,
+  MapPin
 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 import HealthcareStepper from '../_components/HealthcareStepper';
 
+interface Hospital {
+  id: string;
+  name: string;
+  location: string;
+  specialties: string[] | null;
+  description: string | null;
+}
+
+interface Recommendation {
+  id: string;
+  hospital: Hospital;
+}
+
+function unwrap<T>(val: T | T[] | null | undefined): T | null {
+  if (!val) return null;
+  return Array.isArray(val) ? val[0] ?? null : val;
+}
+
 export default function RecommendationsPage() {
+  const supabase = createClient();
+
+  const [loading, setLoading] = useState(true);
+  const [selecting, setSelecting] = useState<string | null>(null);
+  const [caseId, setCaseId] = useState<string | null>(null);
+  const [caseNumber, setCaseNumber] = useState<string>('HW-2026-531971');
+  const [need, setNeed] = useState<string>('Not sure, I need guidance');
+  const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: caseData } = await supabase
+        .from('cases')
+        .select('id, case_number, need, selected_hospital_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!caseData) {
+        setLoading(false);
+        return;
+      }
+
+      setCaseId(caseData.id);
+      setCaseNumber(caseData.case_number || caseNumber);
+      setNeed(caseData.need || need);
+      setSelectedHospitalId(caseData.selected_hospital_id || null);
+
+      const { data: recsData } = await supabase
+        .from('case_hospital_recommendations')
+        .select('id, hospital:hospitals ( id, name, location, specialties, description )')
+        .eq('case_id', caseData.id);
+
+      const mapped: Recommendation[] = (recsData || []).map((r: any) => ({
+        id: r.id,
+        hospital: unwrap(r.hospital) as Hospital,
+      }));
+      setRecommendations(mapped);
+    } catch (err) {
+      console.error('Error loading recommendations:', err);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleSelectHospital = async (hospitalId: string) => {
+    if (!caseId) return;
+    setSelecting(hospitalId);
+    try {
+      const { error } = await supabase
+        .from('cases')
+        .update({ selected_hospital_id: hospitalId })
+        .eq('id', caseId);
+
+      if (error) {
+        console.error('Error selecting hospital:', error.message);
+        return;
+      }
+      setSelectedHospitalId(hospitalId);
+    } finally {
+      setSelecting(null);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12 min-h-[400px]">
+        <Loader2 className="w-6 h-6 text-blue-900 animate-spin mr-2" />
+        <span className="text-sm font-medium text-slate-600">Loading your recommendations...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full font-sans">
       
@@ -21,7 +129,7 @@ export default function RecommendationsPage() {
             Hospital Recommendations
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Case HW-2026-531971 · Last updated Today
+            Case {caseNumber} · {recommendations.length} option{recommendations.length === 1 ? '' : 's'} from your coordinator
           </p>
         </div>
         <Link 
@@ -52,18 +160,72 @@ export default function RecommendationsPage() {
       {/* Reusable Healthcare Stepper */}
       <HealthcareStepper />
 
-      {/* Main Empty State / Preparation Box */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 text-center shadow-xs space-y-4">
-        <div className="w-12 h-12 rounded-full bg-emerald-100/60 text-emerald-600 flex items-center justify-center mx-auto">
-          <PlusSquare className="w-6 h-6" />
+      {/* Hospital Options or Empty State */}
+      {recommendations.length === 0 ? (
+        <div className="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 text-center shadow-xs space-y-4">
+          <div className="w-12 h-12 rounded-full bg-emerald-100/60 text-emerald-600 flex items-center justify-center mx-auto">
+            <PlusSquare className="w-6 h-6" />
+          </div>
+          <h3 className="text-lg font-bold text-blue-900">
+            Your recommendations are being prepared
+          </h3>
+          <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
+            Our clinical advisors are still reviewing your case. We&apos;ll notify you as soon as they&apos;re ready.
+          </p>
         </div>
-        <h3 className="text-lg font-bold text-blue-900">
-          Your recommendations are being prepared
-        </h3>
-        <p className="text-xs sm:text-sm text-slate-500 max-w-md mx-auto leading-relaxed">
-          Our clinical advisors are still reviewing your case. We&apos;ll notify you as soon as they&apos;re ready.
-        </p>
-      </div>
+      ) : (
+        <div className="space-y-4">
+          {selectedHospitalId && (
+            <div className="p-4 bg-emerald-50/60 border border-emerald-200 rounded-2xl flex items-center gap-2 text-xs sm:text-sm text-emerald-900 font-medium">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+              You&apos;ve selected a hospital. Your coordinator will follow up with next steps.
+            </div>
+          )}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            {recommendations.map((rec) => {
+              const isSelected = rec.hospital.id === selectedHospitalId;
+              return (
+                <div
+                  key={rec.id}
+                  className={`bg-white p-5 sm:p-6 rounded-2xl border shadow-xs space-y-3 ${
+                    isSelected ? 'border-emerald-400 ring-1 ring-emerald-200' : 'border-slate-200'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className="text-sm font-bold text-blue-900">{rec.hospital.name}</h3>
+                    {isSelected && <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />}
+                  </div>
+                  <p className="text-xs text-slate-500 flex items-center gap-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-400" /> {rec.hospital.location}
+                  </p>
+                  {rec.hospital.specialties && rec.hospital.specialties.length > 0 && (
+                    <p className="text-xs text-slate-600">{rec.hospital.specialties.join(', ')}</p>
+                  )}
+                  {rec.hospital.description && (
+                    <p className="text-xs text-slate-500 leading-relaxed">{rec.hospital.description}</p>
+                  )}
+                  <button
+                    onClick={() => handleSelectHospital(rec.hospital.id)}
+                    disabled={isSelected || selecting === rec.hospital.id || !!selectedHospitalId}
+                    className={`w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 font-semibold text-xs rounded-lg transition-colors ${
+                      isSelected
+                        ? 'bg-emerald-100 text-emerald-700 cursor-default'
+                        : 'bg-blue-900 hover:bg-blue-800 disabled:opacity-50 text-white'
+                    }`}
+                  >
+                    {selecting === rec.hospital.id ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : isSelected ? (
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                    ) : null}
+                    {isSelected ? 'Selected' : 'Select This Hospital'}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* 2x2 Grid Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
@@ -99,8 +261,8 @@ export default function RecommendationsPage() {
             CASE SUMMARY
           </span>
           <div className="space-y-2 text-xs text-slate-600">
-            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
+            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> {caseNumber}</p>
+            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> {need}</p>
             <p><strong className="text-slate-900 font-semibold">Stage:</strong> Hospital Recommendation</p>
             <p><strong className="text-slate-900 font-semibold">Started:</strong> Today</p>
           </div>

@@ -1,16 +1,111 @@
 'use client';
 
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   Bell, 
   Plus, 
   Send, 
-  ArrowRight
+  ArrowRight,
+  Loader2,
+  CheckCircle2,
+  Plane,
+  Hotel,
+  CalendarDays
 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 import HealthcareStepper from '../_components/HealthcareStepper';
 
+interface TravelPlan {
+  id: string;
+  flight_details: string | null;
+  accommodation_details: string | null;
+  itinerary_notes: string | null;
+  confirmed_by_patient: boolean;
+}
+
 export default function TravelPreparationPage() {
+  const supabase = createClient();
+
+  const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [caseId, setCaseId] = useState<string | null>(null);
+  const [caseNumber, setCaseNumber] = useState<string>('HW-2026-531971');
+  const [need, setNeed] = useState<string>('Not sure, I need guidance');
+  const [travelPlan, setTravelPlan] = useState<TravelPlan | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: caseData } = await supabase
+        .from('cases')
+        .select('id, case_number, need')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!caseData) {
+        setLoading(false);
+        return;
+      }
+
+      setCaseId(caseData.id);
+      setCaseNumber(caseData.case_number || caseNumber);
+      setNeed(caseData.need || need);
+
+      const { data: travelData } = await supabase
+        .from('travel_plans')
+        .select('*')
+        .eq('case_id', caseData.id)
+        .maybeSingle();
+
+      setTravelPlan(travelData as TravelPlan | null);
+    } catch (err) {
+      console.error('Error loading travel preparation:', err);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleConfirm = async () => {
+    if (!travelPlan) return;
+    setConfirming(true);
+    try {
+      const { error } = await supabase
+        .from('travel_plans')
+        .update({ confirmed_by_patient: true, updated_at: new Date().toISOString() })
+        .eq('id', travelPlan.id);
+
+      if (error) {
+        console.error('Error confirming travel plan:', error.message);
+        return;
+      }
+      setTravelPlan({ ...travelPlan, confirmed_by_patient: true });
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12 min-h-[400px]">
+        <Loader2 className="w-6 h-6 text-blue-900 animate-spin mr-2" />
+        <span className="text-sm font-medium text-slate-600">Loading your travel preparation...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 bg-slate-50/50 min-h-screen p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full font-sans">
       
@@ -45,7 +140,7 @@ export default function TravelPreparationPage() {
             Good to see you, Amara.
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Case HW-2026-531971 · Last updated Today
+            Case {caseNumber} · Last updated Today
           </p>
         </div>
         <Link 
@@ -79,18 +174,70 @@ export default function TravelPreparationPage() {
       {/* Stage 6 Active Banner */}
       <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
-          <h3 className="text-base font-bold text-blue-900">Travel Preparation Underway</h3>
+          <h3 className="text-base font-bold text-blue-900">
+            {travelPlan?.confirmed_by_patient ? 'Travel Plans Confirmed' : 'Travel Preparation Underway'}
+          </h3>
           <p className="text-xs sm:text-sm text-slate-600 max-w-xl leading-relaxed">
-            Your coordinator is finalizing travel arrangements. We&apos;ll notify you as soon as there&apos;s an update.
+            {travelPlan
+              ? 'Review the details below and confirm when everything looks right.'
+              : "Your coordinator is finalizing travel arrangements. We'll notify you as soon as there's an update."}
           </p>
         </div>
-        <Link 
-          href="/dashboard/messages"
-          className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap"
-        >
-          Message Coordinator
-        </Link>
+        {travelPlan?.confirmed_by_patient ? (
+          <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white font-semibold text-xs sm:text-sm rounded-lg w-full sm:w-auto justify-center">
+            <CheckCircle2 className="w-4 h-4" /> Confirmed
+          </span>
+        ) : travelPlan ? (
+          <button
+            onClick={handleConfirm}
+            disabled={confirming}
+            className="inline-flex items-center justify-center gap-1.5 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap"
+          >
+            {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+            Confirm Travel Plans
+          </button>
+        ) : (
+          <Link 
+            href="/dashboard/messages"
+            className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap"
+          >
+            Message Coordinator
+          </Link>
+        )}
       </div>
+
+      {/* Travel Plan Details */}
+      {travelPlan && (travelPlan.flight_details || travelPlan.accommodation_details || travelPlan.itinerary_notes) && (
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
+          {travelPlan.flight_details && (
+            <div className="flex items-start gap-3">
+              <Plane className="w-4 h-4 text-blue-900 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Flight Details</p>
+                <p className="text-xs sm:text-sm text-slate-700 mt-1 whitespace-pre-line">{travelPlan.flight_details}</p>
+              </div>
+            </div>
+          )}
+          {travelPlan.accommodation_details && (
+            <div className="flex items-start gap-3">
+              <Hotel className="w-4 h-4 text-blue-900 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Accommodation</p>
+                <p className="text-xs sm:text-sm text-slate-700 mt-1 whitespace-pre-line">{travelPlan.accommodation_details}</p>
+              </div>
+            </div>
+          )}
+          {travelPlan.itinerary_notes && (
+            <div className="flex items-start gap-3">
+              <CalendarDays className="w-4 h-4 text-blue-900 mt-0.5 shrink-0" />
+              <div>
+                <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Itinerary Notes</p>
+                <p className="text-xs sm:text-sm text-slate-700 mt-1 whitespace-pre-line">{travelPlan.itinerary_notes}</p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Coordinator Note */}
       <div className="bg-white border-l-4 border-l-emerald-600 p-5 sm:p-6 rounded-r-2xl border border-slate-200 shadow-xs space-y-2">
@@ -98,7 +245,7 @@ export default function TravelPreparationPage() {
           CASE REVIEW FROM YOUR COORDINATOR
         </span>
         <p className="text-xs sm:text-sm text-slate-800 break-words leading-relaxed font-medium">
-          We are currently organizing your flight options and ground transport. Details will be populated here shortly.
+          {travelPlan?.itinerary_notes || 'We are currently organizing your flight options and ground transport. Details will be populated here shortly.'}
         </p>
         <p className="text-[11px] text-slate-400 font-medium pt-1">
           Sarah James · Just now
@@ -139,8 +286,8 @@ export default function TravelPreparationPage() {
             CASE SUMMARY
           </span>
           <div className="space-y-2 text-xs text-slate-600">
-            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> Not sure, I need guidance</p>
+            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> {caseNumber}</p>
+            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> {need}</p>
             <p><strong className="text-slate-900 font-semibold">Stage:</strong> Travel Preparation</p>
             <p><strong className="text-slate-900 font-semibold">Started:</strong> Today</p>
           </div>

@@ -73,16 +73,20 @@ export default function StepTwoYourSituation({
         throw new Error('User authentication lost. Please restart step 1.');
       }
 
-      // 2. Persist step data to Supabase (upsert active case draft)
+      // 2. Persist step data to Supabase (upsert active case draft).
+      // Note: `status` is intentionally left unset here — it stays on its
+      // enum default ('New'). Whether this case is a finished submission
+      // vs. an abandoned draft is tracked by `submitted_at` (set in Step 6),
+      // not by a separate 'draft' status value that isn't part of the enum.
       const { data: caseData, error: dbError } = await supabase
         .from('cases')
         .upsert({
-          ...(caseId ? { id: caseId } : {}),
+          ...(caseId ? { id: caseId } : { case_number: `CASE-${Date.now().toString(36).toUpperCase()}` }),
           user_id: user.id,
           support_type: formData.supportType,
           healthcare_area: formData.healthcareArea || null,
+          need: formData.healthcareArea || 'General Guidance',
           situation_description: formData.situationDescription,
-          status: 'draft',
           updated_at: new Date().toISOString(),
         })
         .select()

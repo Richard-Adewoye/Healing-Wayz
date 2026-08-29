@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Calendar, Loader2 } from 'lucide-react';
-import { createClient } from '../../utils/supabase/client'; // Adjust path to your browser client
+import { createClient } from '../../utils/supabase/client';
 
 interface PatientCase {
   id: string;
@@ -27,8 +27,18 @@ export default function PatientCasesPage() {
   const [loading, setLoading] = useState(true);
   const [selectedFilter, setSelectedFilter] = useState<StatusFilter>('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+
+  // Debounce search query to reduce unnecessary backend requests
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
 
   // Helper to format timestamps into relative or clean strings
   const formatUpdatedTime = (dateString: string) => {
@@ -43,19 +53,22 @@ export default function PatientCasesPage() {
     return date.toLocaleDateString();
   };
 
-  // Fetch Cases from Supabase
+  // Fetch Cases from Supabase with Backend Filtering
   const fetchCases = useCallback(async () => {
     setLoading(true);
 
     try {
-      // Query 'documents' table explicitly referencing user_id relationship on 'profiles'
-      const { data, error } = await supabase
+      let query = supabase
         .from('documents')
         .select(`
           id,
           user_id,
           case_id,
           name,
+          status,
+          priority,
+          coordinator,
+          stage,
           file_path,
           file_size,
           mime_type,
@@ -63,8 +76,42 @@ export default function PatientCasesPage() {
           profiles!user_id (
             full_name
           )
-        `)
-        .order('created_at', { ascending: false });
+        `);
+
+      // 1. Status Filter (Backend)
+      if (selectedFilter !== 'All') {
+        query = query.eq('status', selectedFilter);
+      }
+
+      // 2. Date Range Filters (Backend)
+      if (startDate) {
+        // Assuming DD/MM/YYYY input converted to ISO format
+        const [day, month, year] = startDate.split('/');
+        if (day && month && year) {
+          const isoStart = new Date(`${year}-${month}-${day}T00:00:00.000Z`).toISOString();
+          query = query.gte('created_at', isoStart);
+        }
+      }
+
+      if (endDate) {
+        const [day, month, year] = endDate.split('/');
+        if (day && month && year) {
+          const isoEnd = new Date(`${year}-${month}-${day}T23:59:59.999Z`).toISOString();
+          query = query.lte('created_at', isoEnd);
+        }
+      }
+
+      // 3. Search Query Filter (Backend across relations and fields)
+      if (debouncedSearch.trim()) {
+        const term = `%${debouncedSearch.trim()}%`;
+        // Search across document name, case ID, or profile full name
+        query = query.or(`name.ilike.${term},case_id.ilike.${term},profiles.full_name.ilike.${term}`);
+      }
+
+      // 4. Order results
+      query = query.order('created_at', { ascending: false });
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Error fetching patient cases:', error.message);
@@ -77,10 +124,10 @@ export default function PatientCasesPage() {
           patientName: doc.profiles?.full_name || 'Unknown Patient',
           caseId: doc.case_id || `CASE-${doc.id.slice(0, 8).toUpperCase()}`,
           need: doc.name || 'General Guidance',
-          stage: 'Document Uploaded',
-          status: 'New',
-          priority: 'Normal',
-          coordinator: 'Unassigned',
+          stage: doc.stage || 'Document Uploaded',
+          status: doc.status || 'New',
+          priority: doc.priority || 'Normal',
+          coordinator: doc.coordinator || 'Unassigned',
           updated: formatUpdatedTime(doc.created_at),
           rawCreatedAt: doc.created_at,
           hasNotificationDot: true,
@@ -93,24 +140,11 @@ export default function PatientCasesPage() {
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, selectedFilter, debouncedSearch, startDate, endDate]);
 
   useEffect(() => {
     fetchCases();
   }, [fetchCases]);
-
-  // Filtering Logic
-  const filteredCases = cases.filter((item) => {
-    const matchesFilter =
-      selectedFilter === 'All' || item.status === selectedFilter;
-
-    const matchesSearch =
-      item.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.caseId.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.need.toLowerCase().includes(searchQuery.toLowerCase());
-
-    return matchesFilter && matchesSearch;
-  });
 
   const getStatusBadge = (status: PatientCase['status']) => {
     switch (status) {
@@ -158,7 +192,7 @@ export default function PatientCasesPage() {
       <div>
         <h1 className="text-2xl font-bold text-[#1E3A8A] mb-1">Patient Cases</h1>
         <p className="text-slate-500 text-sm">
-          {cases.length} total cases across your team.
+          {cases.length} total cases fetched.
         </p>
       </div>
 
@@ -227,7 +261,7 @@ export default function PatientCasesPage() {
               <Loader2 className="w-6 h-6 text-blue-600 animate-spin mr-2" />
               <span className="text-sm text-slate-500">Loading patient cases...</span>
             </div>
-          ) : filteredCases.length === 0 ? (
+          ) : cases.length === 0 ? (
             <div className="p-12 text-center text-sm text-slate-500">
               No patient cases match your query.
             </div>
@@ -246,7 +280,7 @@ export default function PatientCasesPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-sm">
-                {filteredCases.map((c) => (
+                {cases.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/60 transition-colors">
                     <td className="py-4 px-6 font-bold text-slate-800 whitespace-nowrap">
                       <div className="inline-flex items-center gap-1.5">

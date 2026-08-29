@@ -68,7 +68,7 @@ export default function StepFourDocuments({
         throw new Error('Missing case context. Please complete step 2 first.');
       }
 
-      const uploadedFilesMetaData: Array<{ name: string; path: string; size: number }> = [];
+      const uploadedFilesMetaData: Array<{ name: string; path: string; size: number; mimeType: string }> = [];
 
       // Upload each file to Supabase Storage bucket 'case-documents'
       for (let i = 0; i < files.length; i++) {
@@ -79,7 +79,7 @@ export default function StepFourDocuments({
         const filePath = `${user.id}/${caseId}/${Date.now()}_${Math.random().toString(36).substring(2, 9)}.${fileExt}`;
 
         const { error: uploadError } = await supabase.storage
-          .from('case-documents')
+          .from('documents')
           .upload(filePath, file, {
             cacheControl: '3600',
             upsert: false,
@@ -93,21 +93,27 @@ export default function StepFourDocuments({
           name: file.name,
           path: filePath,
           size: file.size,
+          mimeType: file.type,
         });
       }
 
-      // Record documents metadata in database if files were uploaded
+      // Record documents metadata in database if files were uploaded.
+      // Written to public.documents — the same table your admin dashboard
+      // already reads for "Documents Pending Review" and "Recent Activity".
+      // (public.case_documents doesn't exist in your schema; this used to
+      // point at it and would have failed on every upload.)
       if (uploadedFilesMetaData.length > 0) {
         const documentRecords = uploadedFilesMetaData.map((meta) => ({
           case_id: caseId,
           user_id: user.id,
-          file_name: meta.name,
-          storage_path: meta.path,
+          name: meta.name,
+          file_path: meta.path,
           file_size: meta.size,
+          mime_type: meta.mimeType,
         }));
 
         const { error: dbError } = await supabase
-          .from('case_documents')
+          .from('documents')
           .insert(documentRecords);
 
         if (dbError) throw dbError;
