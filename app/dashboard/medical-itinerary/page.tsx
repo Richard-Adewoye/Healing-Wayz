@@ -1,42 +1,122 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { 
   Plus, 
   Send, 
   ArrowRight,
-  Clock,
-  MapPin
+  Loader2,
+  CheckCircle2,
+  Lock
 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 import HealthcareStepper from '../_components/HealthcareStepper';
 
-const itineraryEvents = [
-  {
-    date: 'Day 1 — Arrival & Check-in',
-    time: '09:00 AM',
-    title: 'Initial Consultation & Diagnostic Tests',
-    location: 'Al Noor Specialist Medical Center, Dubai',
-    details: 'Meet with Dr. Sarah James for preliminary examination and blood tests.'
-  },
-  {
-    date: 'Day 2 — Treatment Procedure',
-    time: '11:30 AM',
-    title: 'Dermatological Procedure',
-    location: 'Main Operating Suite, 3rd Floor',
-    details: 'Please fast for 6 hours prior to your scheduled appointment time.'
-  },
-  {
-    date: 'Day 3 — Follow-up & Discharge',
-    time: '02:00 PM',
-    title: 'Post-Treatment Review',
-    location: 'Outpatient Clinic',
-    details: 'Final review of treatment progress and prescription clearance.'
-  }
-];
+interface TravelPlan {
+  id: string;
+  itinerary_notes: string | null;
+  itinerary_confirmed_by_patient: boolean;
+}
 
 export default function MedicalItineraryPage() {
+  const supabase = createClient();
+
   const [activeTab, setActiveTab] = useState<'journey' | 'itinerary'>('journey');
+  const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(false);
+  const [firstName, setFirstName] = useState('there');
+  const [caseNumber, setCaseNumber] = useState('HW-2026-531971');
+  const [need, setNeed] = useState('Guidance & Consultation');
+  const [selectedHospitalId, setSelectedHospitalId] = useState<string | null>(null);
+  const [travelPlan, setTravelPlan] = useState<TravelPlan | null>(null);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setLoading(false);
+        return;
+      }
+
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('full_name')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const resolvedName = profile?.full_name || user.email?.split('@')[0];
+      if (resolvedName) setFirstName(resolvedName.split(' ')[0]);
+
+      const { data: caseData } = await supabase
+        .from('cases')
+        .select('id, case_number, need, selected_hospital_id')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle();
+
+      if (!caseData) {
+        setLoading(false);
+        return;
+      }
+
+      setCaseNumber(caseData.case_number || caseNumber);
+      setNeed(caseData.need || need);
+      setSelectedHospitalId(caseData.selected_hospital_id || null);
+
+      const { data: travelData } = await supabase
+        .from('travel_plans')
+        .select('id, itinerary_notes, itinerary_confirmed_by_patient')
+        .eq('case_id', caseData.id)
+        .maybeSingle();
+
+      setTravelPlan(travelData as TravelPlan | null);
+    } catch (err) {
+      console.error('Error loading medical itinerary:', err);
+    } finally {
+      setLoading(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  const handleConfirmItinerary = async () => {
+    if (!travelPlan) return;
+    setConfirming(true);
+    try {
+      const { error } = await supabase
+        .from('travel_plans')
+        .update({ itinerary_confirmed_by_patient: true, updated_at: new Date().toISOString() })
+        .eq('id', travelPlan.id);
+
+      if (error) {
+        console.error('Error confirming itinerary:', error.message);
+        return;
+      }
+      setTravelPlan({ ...travelPlan, itinerary_confirmed_by_patient: true });
+    } finally {
+      setConfirming(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-12 min-h-[400px]">
+        <Loader2 className="w-6 h-6 text-blue-900 animate-spin mr-2" />
+        <span className="text-sm font-medium text-slate-600">Loading your itinerary...</span>
+      </div>
+    );
+  }
+
+  // Gating: this stage doesn't apply until a hospital has been selected —
+  // mirrors the admin's per-stage unlock logic.
+  const hospitalSelected = !!selectedHospitalId;
+  const hasItinerary = !!travelPlan?.itinerary_notes;
+  const itineraryConfirmed = !!travelPlan?.itinerary_confirmed_by_patient;
 
   return (
     <div className="p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full font-sans">
@@ -45,12 +125,12 @@ export default function MedicalItineraryPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 leading-tight">
-            {activeTab === 'journey' ? 'Good to see you, Amara.' : 'Your Medical Itinerary'}
+            {activeTab === 'journey' ? `Good to see you, ${firstName}.` : 'Your Medical Itinerary'}
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {activeTab === 'journey' 
-              ? 'Case HW-2026-531971 · Last updated Today' 
-              : 'Scheduled appointments and care steps prepared by Sarah James.'
+              ? `Case ${caseNumber} · Last updated Today` 
+              : 'Scheduled appointments and care steps prepared by your coordinator.'
             }
           </p>
         </div>
@@ -86,58 +166,82 @@ export default function MedicalItineraryPage() {
       {/* Reusable Healthcare Stepper */}
       <HealthcareStepper />
 
+      {/* Not-yet-reached state */}
+      {!hospitalSelected && (
+        <div className="p-5 sm:p-6 bg-slate-50 border border-dashed border-slate-300 rounded-2xl flex items-start gap-3">
+          <Lock className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+          <div>
+            <h3 className="text-sm font-bold text-slate-600">Medical Itinerary not yet available</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              This becomes available once you&apos;ve selected a hospital from your recommendations.
+            </p>
+            <Link href="/dashboard/recommendations" className="text-xs font-semibold text-blue-900 hover:text-blue-700 inline-block mt-2">
+              View Hospital Recommendations →
+            </Link>
+          </div>
+        </div>
+      )}
+
       {/* Action Banner / Medical Itinerary Details */}
-      {activeTab === 'journey' ? (
+      {hospitalSelected && activeTab === 'journey' && (
         <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
-            <h3 className="text-base font-bold text-blue-900">Review Your Medical Itinerary</h3>
+            <h3 className="text-base font-bold text-blue-900">
+              {itineraryConfirmed ? 'Itinerary Confirmed' : hasItinerary ? 'Review Your Medical Itinerary' : 'Itinerary Not Yet Ready'}
+            </h3>
             <p className="text-xs sm:text-sm text-slate-600">
-              Your care schedule and clinical appointments have been prepared by your coordinator.
+              {hasItinerary
+                ? 'Your care schedule and clinical appointments have been prepared by your coordinator.'
+                : "Your coordinator hasn't published your itinerary yet. We'll notify you as soon as it's ready."}
             </p>
           </div>
           <button 
-            onClick={() => setActiveTab('itinerary')}
-            className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap cursor-pointer"
+            onClick={() => hasItinerary && setActiveTab('itinerary')}
+            disabled={!hasItinerary}
+            className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap cursor-pointer"
           >
             View Itinerary
           </button>
         </div>
-      ) : (
+      )}
+
+      {hospitalSelected && activeTab === 'itinerary' && (
         <div className="bg-white p-5 sm:p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xs space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-4 flex-wrap gap-2">
             <h3 className="text-base font-bold text-blue-900">Upcoming Medical Schedule</h3>
+            <div className="flex items-center gap-2">
+              {itineraryConfirmed && (
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Confirmed
+                </span>
+              )}
+              <button
+                onClick={() => setActiveTab('journey')}
+                className="bg-emerald-50 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+              >
+                ← Back to Overview
+              </button>
+            </div>
+          </div>
+
+          {travelPlan?.itinerary_notes && (
+            <div className="border-l-2 border-emerald-600 pl-4 py-1">
+              <p className="text-xs sm:text-sm text-slate-700 whitespace-pre-line leading-relaxed">
+                {travelPlan.itinerary_notes}
+              </p>
+            </div>
+          )}
+
+          {!itineraryConfirmed && (
             <button
-              onClick={() => setActiveTab('journey')}
-              className="bg-emerald-50 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+              onClick={handleConfirmItinerary}
+              disabled={confirming}
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs sm:text-sm font-semibold rounded-lg shadow-xs transition-colors"
             >
-              ← Back to Overview
+              {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+              Confirm Itinerary
             </button>
-          </div>
-
-          <div className="space-y-6">
-            {itineraryEvents.map((event, index) => (
-              <div key={index} className="flex flex-col md:flex-row md:items-start justify-between border-l-2 border-emerald-600 pl-4 py-1 space-y-2 md:space-y-0">
-                <div className="space-y-1">
-                  <span className="text-[11px] font-bold text-blue-900 uppercase tracking-wide">
-                    {event.date}
-                  </span>
-                  <h4 className="text-sm font-bold text-slate-900">{event.title}</h4>
-                  <p className="text-xs text-slate-600">{event.details}</p>
-                </div>
-
-                <div className="flex flex-col text-xs text-slate-500 space-y-1 md:text-right pt-1 md:pt-0">
-                  <span className="flex items-center md:justify-end gap-1 font-medium">
-                    <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    {event.time}
-                  </span>
-                  <span className="flex items-center md:justify-end gap-1">
-                    <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                    {event.location}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
+          )}
         </div>
       )}
 
@@ -147,7 +251,9 @@ export default function MedicalItineraryPage() {
           CASE REVIEW FROM YOUR COORDINATOR
         </span>
         <p className="text-xs sm:text-sm text-slate-800 break-words leading-relaxed font-medium">
-          Your initial medical documents have been successfully reviewed. We are preparing the primary consultation schedule with our clinical team.
+          {hasItinerary
+            ? 'Your itinerary has been prepared — review the details above and confirm when ready.'
+            : 'Your initial medical documents have been successfully reviewed. We are preparing the primary consultation schedule with our clinical team.'}
         </p>
         <p className="text-[11px] text-slate-400 font-medium pt-1">
           Sarah James · Just now
@@ -188,8 +294,8 @@ export default function MedicalItineraryPage() {
             CASE SUMMARY
           </span>
           <div className="space-y-2 text-xs text-slate-600">
-            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> HW-2026-531971</p>
-            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> Guidance & Consultation</p>
+            <p><strong className="text-slate-900 font-semibold">Case ID:</strong> {caseNumber}</p>
+            <p><strong className="text-slate-900 font-semibold">Healthcare Need:</strong> {need}</p>
             <p><strong className="text-slate-900 font-semibold">Stage:</strong> Medical Itinerary</p>
             <p><strong className="text-slate-900 font-semibold">Started:</strong> Today</p>
           </div>

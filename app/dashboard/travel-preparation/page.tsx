@@ -10,8 +10,7 @@ import {
   Loader2,
   CheckCircle2,
   Plane,
-  Hotel,
-  CalendarDays
+  Lock
 } from 'lucide-react';
 import { createClient } from '../../utils/supabase/client';
 import HealthcareStepper from '../_components/HealthcareStepper';
@@ -19,9 +18,8 @@ import HealthcareStepper from '../_components/HealthcareStepper';
 interface TravelPlan {
   id: string;
   flight_details: string | null;
-  accommodation_details: string | null;
-  itinerary_notes: string | null;
   confirmed_by_patient: boolean;
+  accommodation_visa_confirmed_by_patient: boolean;
 }
 
 export default function TravelPreparationPage() {
@@ -29,7 +27,6 @@ export default function TravelPreparationPage() {
 
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(false);
-  const [caseId, setCaseId] = useState<string | null>(null);
   const [caseNumber, setCaseNumber] = useState<string>('HW-2026-531971');
   const [need, setNeed] = useState<string>('Not sure, I need guidance');
   const [travelPlan, setTravelPlan] = useState<TravelPlan | null>(null);
@@ -55,13 +52,12 @@ export default function TravelPreparationPage() {
         return;
       }
 
-      setCaseId(caseData.id);
       setCaseNumber(caseData.case_number || caseNumber);
       setNeed(caseData.need || need);
 
       const { data: travelData } = await supabase
         .from('travel_plans')
-        .select('*')
+        .select('id, flight_details, confirmed_by_patient, accommodation_visa_confirmed_by_patient')
         .eq('case_id', caseData.id)
         .maybeSingle();
 
@@ -106,6 +102,11 @@ export default function TravelPreparationPage() {
     );
   }
 
+  // Gating: this stage doesn't apply until Accommodation & Visa is confirmed.
+  const accommodationVisaConfirmed = !!travelPlan?.accommodation_visa_confirmed_by_patient;
+  const hasFlightDetails = !!travelPlan?.flight_details;
+  const confirmed = !!travelPlan?.confirmed_by_patient;
+
   return (
     <div className="flex-1 bg-slate-50/50 min-h-screen p-4 sm:p-8 md:p-10 space-y-6 sm:space-y-8 max-w-7xl mx-auto w-full font-sans">
       
@@ -137,7 +138,7 @@ export default function TravelPreparationPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl md:text-3xl font-bold text-blue-900 leading-tight">
-            Good to see you, Amara.
+            Good to see you.
           </h2>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Case {caseNumber} · Last updated Today
@@ -171,86 +172,70 @@ export default function TravelPreparationPage() {
       {/* Reusable Healthcare Stepper */}
       <HealthcareStepper />
 
-      {/* Stage 6 Active Banner */}
-      <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <h3 className="text-base font-bold text-blue-900">
-            {travelPlan?.confirmed_by_patient ? 'Travel Plans Confirmed' : 'Travel Preparation Underway'}
-          </h3>
-          <p className="text-xs sm:text-sm text-slate-600 max-w-xl leading-relaxed">
-            {travelPlan
-              ? 'Review the details below and confirm when everything looks right.'
-              : "Your coordinator is finalizing travel arrangements. We'll notify you as soon as there's an update."}
-          </p>
+      {!accommodationVisaConfirmed ? (
+        <div className="p-5 sm:p-6 bg-slate-50 border border-dashed border-slate-300 rounded-2xl flex items-start gap-3">
+          <Lock className="w-4 h-4 text-slate-400 mt-0.5 shrink-0" />
+          <div>
+            <h3 className="text-sm font-bold text-slate-600">Travel Preparation not yet available</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              This becomes available once you&apos;ve confirmed your Accommodation & Visa details.
+            </p>
+            <Link href="/dashboard/accommodation" className="text-xs font-semibold text-blue-900 hover:text-blue-700 inline-block mt-2">
+              View Accommodation & Visa →
+            </Link>
+          </div>
         </div>
-        {travelPlan?.confirmed_by_patient ? (
-          <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white font-semibold text-xs sm:text-sm rounded-lg w-full sm:w-auto justify-center">
-            <CheckCircle2 className="w-4 h-4" /> Confirmed
-          </span>
-        ) : travelPlan ? (
-          <button
-            onClick={handleConfirm}
-            disabled={confirming}
-            className="inline-flex items-center justify-center gap-1.5 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap"
-          >
-            {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-            Confirm Travel Plans
-          </button>
-        ) : (
-          <Link 
-            href="/dashboard/messages"
-            className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap"
-          >
-            Message Coordinator
-          </Link>
-        )}
-      </div>
+      ) : (
+        <>
+          {/* Stage Active Banner */}
+          <div className="p-5 sm:p-6 bg-emerald-50/60 border border-emerald-100/80 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <h3 className="text-base font-bold text-blue-900">
+                {confirmed ? 'Travel Plans Confirmed' : 'Travel Preparation Underway'}
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-600 max-w-xl leading-relaxed">
+                {hasFlightDetails
+                  ? 'Review your flight details below and confirm when everything looks right.'
+                  : "Your coordinator is finalizing your flight arrangements. We'll notify you as soon as there's an update."}
+              </p>
+            </div>
+            {confirmed ? (
+              <span className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white font-semibold text-xs sm:text-sm rounded-lg w-full sm:w-auto justify-center">
+                <CheckCircle2 className="w-4 h-4" /> Confirmed
+              </span>
+            ) : hasFlightDetails ? (
+              <button
+                onClick={handleConfirm}
+                disabled={confirming}
+                className="inline-flex items-center justify-center gap-1.5 px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap"
+              >
+                {confirming ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                Confirm Travel Plans
+              </button>
+            ) : (
+              <Link 
+                href="/dashboard/messages"
+                className="inline-flex items-center justify-center px-6 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm rounded-lg shadow-xs transition-colors w-full sm:w-auto whitespace-nowrap"
+              >
+                Message Coordinator
+              </Link>
+            )}
+          </div>
 
-      {/* Travel Plan Details */}
-      {travelPlan && (travelPlan.flight_details || travelPlan.accommodation_details || travelPlan.itinerary_notes) && (
-        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs space-y-4">
-          {travelPlan.flight_details && (
-            <div className="flex items-start gap-3">
-              <Plane className="w-4 h-4 text-blue-900 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Flight Details</p>
-                <p className="text-xs sm:text-sm text-slate-700 mt-1 whitespace-pre-line">{travelPlan.flight_details}</p>
+          {/* Flight Details */}
+          {hasFlightDetails && (
+            <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-xs">
+              <div className="flex items-start gap-3">
+                <Plane className="w-4 h-4 text-blue-900 mt-0.5 shrink-0" />
+                <div>
+                  <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Flight Details</p>
+                  <p className="text-xs sm:text-sm text-slate-700 mt-1 whitespace-pre-line">{travelPlan?.flight_details}</p>
+                </div>
               </div>
             </div>
           )}
-          {travelPlan.accommodation_details && (
-            <div className="flex items-start gap-3">
-              <Hotel className="w-4 h-4 text-blue-900 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Accommodation</p>
-                <p className="text-xs sm:text-sm text-slate-700 mt-1 whitespace-pre-line">{travelPlan.accommodation_details}</p>
-              </div>
-            </div>
-          )}
-          {travelPlan.itinerary_notes && (
-            <div className="flex items-start gap-3">
-              <CalendarDays className="w-4 h-4 text-blue-900 mt-0.5 shrink-0" />
-              <div>
-                <p className="text-xs font-bold text-blue-900 uppercase tracking-wide">Itinerary Notes</p>
-                <p className="text-xs sm:text-sm text-slate-700 mt-1 whitespace-pre-line">{travelPlan.itinerary_notes}</p>
-              </div>
-            </div>
-          )}
-        </div>
+        </>
       )}
-
-      {/* Coordinator Note */}
-      <div className="bg-white border-l-4 border-l-emerald-600 p-5 sm:p-6 rounded-r-2xl border border-slate-200 shadow-xs space-y-2">
-        <span className="text-xs font-bold uppercase tracking-wider text-blue-900">
-          CASE REVIEW FROM YOUR COORDINATOR
-        </span>
-        <p className="text-xs sm:text-sm text-slate-800 break-words leading-relaxed font-medium">
-          {travelPlan?.itinerary_notes || 'We are currently organizing your flight options and ground transport. Details will be populated here shortly.'}
-        </p>
-        <p className="text-[11px] text-slate-400 font-medium pt-1">
-          Sarah James · Just now
-        </p>
-      </div>
 
       {/* 2x2 Grid Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
