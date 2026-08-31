@@ -19,40 +19,39 @@ export default function PatientLoginForm() {
    * Helper function to verify if the authenticated user has completed
    * a consultation form before sending them to the dashboard.
    */
+   /**
+   * Route the user after successful authentication.
+   * - Admins → /admin
+   * - Patients → /dashboard (which handles the "no active case" state
+   *   with a CTA to start a new consultation, so we don't need to gate
+   *   them on having an existing case)
+   * - Any error → /dashboard as a safe fallback (avoids trapping the
+   *   user in the consultation form due to a transient RLS hiccup)
+   */
   const routeUserAfterAuth = async (userId: string) => {
     try {
-      const { data: userCase, error } = await supabase
-        .from('cases')
-        .select('id, stage, user_id')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(1)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('is_admin')
+        .eq('id', userId)
         .maybeSingle();
 
-      if (error) {
-        // Detailed log to trace RLS / Database column issues
-        console.error('Supabase Case Query Error:', {
-          message: error.message,
-          code: error.code,
-          details: error.details,
-          hint: error.hint,
-        });
-        
-        // If an RLS or database error occurs, redirect to consultation intake
-        router.push('/consultation');
+      if (profile?.is_admin) {
+        router.push('/admin');
+        router.refresh();
         return;
       }
 
-      // If no case exists for this user, send them to fill the form
-      if (!userCase) {
-        router.push('/consultation');
-      } else {
-        router.push('/dashboard');
-      }
+      // Patient — send straight to dashboard regardless of whether
+      // they have an existing case. The dashboard's empty state
+      // already invites them to start a consultation if needed.
+      router.push('/dashboard');
       router.refresh();
     } catch (err: any) {
-      console.error('Error verifying consultation status:', err?.message || err);
-      router.push('/consultation');
+      console.error('Error routing user after auth:', err?.message || err);
+      // Safe fallback — never trap the user in /consultation
+      router.push('/dashboard');
+      router.refresh();
     }
   };
 

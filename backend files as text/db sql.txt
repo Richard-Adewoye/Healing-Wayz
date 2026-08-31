@@ -1,0 +1,138 @@
+-- WARNING: This schema is for context only and is not meant to be run.
+-- Table order and constraints may not be valid for execution.
+
+CREATE TABLE public.profiles (
+  id uuid NOT NULL,
+  email text NOT NULL,
+  full_name text,
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  is_admin boolean NOT NULL DEFAULT false,
+  phone text,
+  country text,
+  CONSTRAINT profiles_pkey PRIMARY KEY (id),
+  CONSTRAINT profiles_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.patient_documents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  patient_id uuid NOT NULL,
+  file_name text NOT NULL,
+  file_path text NOT NULL,
+  file_size integer NOT NULL,
+  mime_type text NOT NULL,
+  document_type text DEFAULT 'general'::text,
+  status text DEFAULT 'pending'::text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT patient_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT patient_documents_patient_id_fkey FOREIGN KEY (patient_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.documents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  case_id uuid,
+  name text NOT NULL,
+  file_path text NOT NULL,
+  file_size bigint,
+  mime_type text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone DEFAULT timezone('utc'::text, now()),
+  status text DEFAULT 'New'::text,
+  priority text DEFAULT 'Normal'::text,
+  coordinator text DEFAULT 'Unassigned'::text,
+  stage text DEFAULT 'Document Uploaded'::text,
+  CONSTRAINT documents_pkey PRIMARY KEY (id),
+  CONSTRAINT documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT fk_documents_profiles FOREIGN KEY (user_id) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.cases (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  case_number text NOT NULL UNIQUE,
+  user_id uuid,
+  coordinator_id uuid,
+  need text NOT NULL DEFAULT 'General Guidance'::text,
+  stage text NOT NULL DEFAULT 'Document Uploaded'::text,
+  status USER-DEFINED NOT NULL DEFAULT 'New'::case_status,
+  priority USER-DEFINED NOT NULL DEFAULT 'Normal'::case_priority,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  workflow_stage USER-DEFINED DEFAULT 'New Consultation'::case_stage_enum,
+  review_text text,
+  review_accepted boolean DEFAULT false,
+  review_accepted_at timestamp with time zone,
+  selected_hospital_id uuid,
+  support_type text,
+  healthcare_area text,
+  situation_description text,
+  has_diagnosis text,
+  diagnosis text,
+  treatment_status text,
+  care_outside_country text,
+  preferred_location text,
+  priorities ARRAY,
+  consent_accurate boolean DEFAULT false,
+  consent_review boolean DEFAULT false,
+  consent_disclaimer boolean DEFAULT false,
+  submitted_at timestamp with time zone,
+  recommended_hospitals ARRAY DEFAULT '{}'::text[],
+  selected_hospital text,
+  CONSTRAINT cases_pkey PRIMARY KEY (id),
+  CONSTRAINT cases_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.profiles(id),
+  CONSTRAINT cases_coordinator_id_fkey FOREIGN KEY (coordinator_id) REFERENCES public.profiles(id),
+  CONSTRAINT cases_selected_hospital_id_fkey FOREIGN KEY (selected_hospital_id) REFERENCES public.hospitals(id)
+);
+CREATE TABLE public.hospitals (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  location text NOT NULL,
+  specialties ARRAY,
+  description text,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT hospitals_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.case_hospital_recommendations (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  case_id uuid NOT NULL,
+  hospital_id uuid NOT NULL,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT case_hospital_recommendations_pkey PRIMARY KEY (id),
+  CONSTRAINT case_hospital_recommendations_case_id_fkey FOREIGN KEY (case_id) REFERENCES public.cases(id),
+  CONSTRAINT case_hospital_recommendations_hospital_id_fkey FOREIGN KEY (hospital_id) REFERENCES public.hospitals(id)
+);
+CREATE TABLE public.travel_plans (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  case_id uuid NOT NULL,
+  flight_details text,
+  accommodation_details text,
+  itinerary_notes text,
+  confirmed_by_patient boolean DEFAULT false,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  itinerary_confirmed_by_patient boolean DEFAULT false,
+  visa_details text,
+  accommodation_visa_confirmed_by_patient boolean DEFAULT false,
+  CONSTRAINT travel_plans_pkey PRIMARY KEY (id),
+  CONSTRAINT travel_plans_case_id_fkey FOREIGN KEY (case_id) REFERENCES public.cases(id)
+);
+CREATE TABLE public.treatment_updates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  case_id uuid NOT NULL,
+  update_title text NOT NULL,
+  update_content text NOT NULL,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT treatment_updates_pkey PRIMARY KEY (id),
+  CONSTRAINT treatment_updates_case_id_fkey FOREIGN KEY (case_id) REFERENCES public.cases(id),
+  CONSTRAINT treatment_updates_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.profiles(id)
+);
+CREATE TABLE public.admin_tasks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  case_id uuid,
+  assigned_to uuid,
+  title text NOT NULL,
+  status USER-DEFINED NOT NULL DEFAULT 'open'::task_status_enum,
+  due_date timestamp with time zone,
+  created_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
+  CONSTRAINT admin_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT admin_tasks_case_id_fkey FOREIGN KEY (case_id) REFERENCES public.cases(id),
+  CONSTRAINT admin_tasks_assigned_to_fkey FOREIGN KEY (assigned_to) REFERENCES public.profiles(id)
+);

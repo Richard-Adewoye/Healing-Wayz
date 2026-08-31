@@ -18,6 +18,7 @@ import {
   LogOut,
   X,
 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 
 const navigation = [
   { name: 'My Healthcare Journey', href: '/dashboard', icon: Home },
@@ -40,9 +41,13 @@ interface SidebarProps {
 export default function Sidebar({ isMobileOpen = false, onClose }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const supabase = createClient();
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    if (onClose) onClose();
     router.push('/login');
+    router.refresh();
   };
 
   return (

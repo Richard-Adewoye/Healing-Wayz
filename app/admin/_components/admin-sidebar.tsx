@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Users, 
@@ -14,6 +14,7 @@ import {
   LogOut,
   X
 } from 'lucide-react';
+import { createClient } from '../../utils/supabase/client';
 
 const sidebarNavItems = [
   { label: 'Dashboard', icon: LayoutDashboard, href: '/admin' },
@@ -32,6 +33,15 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    if (onClose) onClose();
+    router.push('/login');
+    router.refresh();
+  };
 
   return (
     <>
@@ -101,7 +111,7 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
         {/* Sidebar Footer */}
         <div className="p-4 border-t border-blue-600/50">
           <button 
-            onClick={onClose}
+            onClick={handleSignOut}
             className="flex items-center gap-2 text-xs sm:text-sm font-medium text-blue-100 hover:text-white w-full px-2 py-2 transition-colors rounded-lg hover:bg-blue-600/30"
           >
             <LogOut className="w-4 h-4 text-blue-200 shrink-0" />

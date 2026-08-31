@@ -56,6 +56,7 @@ export default function RecommendationsPage() {
         .from('cases')
         .select('id, case_number, need, selected_hospital_id')
         .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
@@ -97,7 +98,11 @@ export default function RecommendationsPage() {
     try {
       const { error } = await supabase
         .from('cases')
-        .update({ selected_hospital_id: hospitalId })
+        .update({
+          selected_hospital_id: hospitalId,
+          workflow_stage: 'Medical Itinerary',
+          updated_at: new Date().toISOString(),
+        })
         .eq('id', caseId);
 
       if (error) {

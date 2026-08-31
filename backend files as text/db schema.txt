@@ -1,0 +1,201 @@
+-- ==========================================
+-- 1. PROFILES SCHEMA UPDATE
+-- ==========================================
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text not null,
+  full_name text,
+  phone text,
+  country text,
+  is_admin boolean not null default false,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Ensure missing columns exist if table was previously created
+alter table public.profiles 
+  add column if not exists phone text,
+  add column if not exists country text;
+
+alter table public.profiles enable row level security;
+
+drop policy if exists "Users can view own profile" on public.profiles;
+create policy "Users can view own profile" 
+on public.profiles for select 
+using (auth.uid() = id);
+
+drop policy if exists "Users can update own profile" on public.profiles;
+create policy "Users can update own profile" 
+on public.profiles for update 
+using (auth.uid() = id);
+
+
+-- ==========================================
+-- 2. CASES SCHEMA UPDATE
+-- ==========================================
+create table if not exists public.cases (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  coordinator_id uuid references auth.users(id),
+  case_number text unique,
+  consultation_for text default 'Myself',
+  support_type text,
+  healthcare_area text,
+  situation_description text,
+  has_diagnosis text,
+  diagnosis text,
+  treatment_status text,
+  care_outside_country text,
+  preferred_location text,
+  priorities text[],
+  stage text not null default 'Case Review',
+  latest_note text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint fk_cases_profiles foreign key (user_id) references public.profiles(id)
+);
+
+-- Ensure missing columns exist if table was previously created
+alter table public.cases 
+  add column if not exists consultation_for text default 'Myself',
+  add column if not exists support_type text,
+  add column if not exists healthcare_area text,
+  add column if not exists situation_description text,
+  add column if not exists has_diagnosis text,
+  add column if not exists diagnosis text,
+  add column if not exists treatment_status text,
+  add column if not exists care_outside_country text,
+  add column if not exists preferred_location text,
+  add column if not exists priorities text[];
+
+create index if not exists idx_cases_user_id on public.cases(user_id);
+
+alter table public.cases enable row level security;
+
+drop policy if exists "Users can view their own cases" on public.cases;
+create policy "Users can view their own cases"
+on public.cases for select to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert their own cases" on public.cases;
+create policy "Users can insert their own cases"
+on public.cases for insert to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "Admins can manage all cases" on public.cases;
+create policy "Admins can manage all cases"
+on public.cases for all to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+
+-- ==========================================
+-- 3. DOCUMENTS SCHEMA UPDATE (Using UUID for case_id)
+-- ==========================================
+create table if not exists public.documents (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  case_id uuid references public.cases(id) on delete cascade,
+  name text not null,
+  file_path text not null,
+  file_size bigint,
+  mime_type text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  updated_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  constraint fk_documents_profiles foreign key (user_id) references public.profiles(id)
+);
+
+-- Safely cast case_id to UUID if table already existed with text column
+alter table public.documents 
+  alter column case_id type uuid using (
+    case 
+      when case_id::text ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' 
+      then case_id::text::uuid 
+      else null 
+    end
+  );
+
+create index if not exists idx_documents_user_id on public.documents(user_id);
+create index if not exists idx_documents_case_id on public.documents(case_id);
+
+alter table public.documents enable row level security;
+
+drop policy if exists "Users can view their own document records" on public.documents;
+create policy "Users can view their own document records"
+on public.documents for select
+using (auth.uid() = user_id);
+
+drop policy if exists "Users can insert their own document records" on public.documents;
+create policy "Users can insert their own document records"
+on public.documents for insert
+with check (auth.uid() = user_id);
+
+drop policy if exists "Users can delete their own document records" on public.documents;
+create policy "Users can delete their own document records"
+on public.documents for delete
+using (auth.uid() = user_id);
+
+drop policy if exists "Admins can manage all document records" on public.documents;
+create policy "Admins can manage all document records"
+on public.documents for all to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+
+-- ==========================================
+-- 4. STORAGE BUCKET & RLS POLICIES: patient-documents
+-- ==========================================
+insert into storage.buckets (id, name, public)
+values ('patient-documents', 'patient-documents', false)
+on conflict (id) do nothing;
+
+drop policy if exists "Users can upload patient documents" on storage.objects;
+drop policy if exists "Users can view own patient documents" on storage.objects;
+drop policy if exists "Users can delete own patient documents" on storage.objects;
+drop policy if exists "Admins can view all patient documents" on storage.objects;
+drop policy if exists "Admins can upload patient documents" on storage.objects;
+drop policy if exists "Admins can delete patient documents" on storage.objects;
+
+create policy "Users can upload patient documents"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'patient-documents' 
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Users can view own patient documents"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'patient-documents' 
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Users can delete own patient documents"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'patient-documents' 
+  and (storage.foldername(name))[1] = auth.uid()::text
+);
+
+create policy "Admins can view all patient documents"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'patient-documents' 
+  and (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+);
+
+create policy "Admins can upload patient documents"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'patient-documents' 
+  and (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+);
+
+create policy "Admins can delete patient documents"
+on storage.objects for delete to authenticated
+using (
+  bucket_id = 'patient-documents' 
+  and (auth.jwt() -> 'app_metadata' ->> 'role') = 'admin'
+);
+
+notify pgrst, 'reload schema';

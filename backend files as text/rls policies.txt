@@ -1,0 +1,71 @@
+-- ==========================================
+-- 1. PROFILES TABLE POLICIES
+-- ==========================================
+alter table public.profiles enable row level security;
+
+-- Drop all existing variations of profile policies
+drop policy if exists "Users can view own profile" on public.profiles;
+drop policy if exists "Users can update own profile" on public.profiles;
+drop policy if exists "Users can insert own profile" on public.profiles;
+drop policy if exists "Admins can view all profiles" on public.profiles;
+drop policy if exists "Admins can update all profiles" on public.profiles;
+drop policy if exists "Admins can manage all profiles" on public.profiles;
+
+-- User Policies
+create policy "Users can view own profile" 
+on public.profiles for select 
+using (auth.uid() = id);
+
+create policy "Users can update own profile" 
+on public.profiles for update 
+using (auth.uid() = id);
+
+create policy "Users can insert own profile" 
+on public.profiles for insert 
+with check (auth.uid() = id);
+
+-- Admin Policies
+create policy "Admins can view all profiles"
+on public.profiles for select to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+create policy "Admins can update all profiles"
+on public.profiles for update to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+
+-- ==========================================
+-- 2. DOCUMENTS TABLE POLICIES
+-- ==========================================
+alter table public.documents enable row level security;
+
+-- Drop all duplicate and legacy document policies
+drop policy if exists "Users can view own documents" on public.documents;
+drop policy if exists "Users can insert own documents" on public.documents;
+drop policy if exists "Users can delete own documents" on public.documents;
+drop policy if exists "Users can view their own document records" on public.documents;
+drop policy if exists "Users can insert their own document records" on public.documents;
+drop policy if exists "Users can delete their own document records" on public.documents;
+drop policy if exists "Admins can manage all document records" on public.documents;
+
+-- Unified User Document Policies
+create policy "Users can view own documents" 
+on public.documents for select to authenticated
+using (auth.uid() = user_id);
+
+create policy "Users can insert own documents" 
+on public.documents for insert to authenticated
+with check (auth.uid() = user_id);
+
+create policy "Users can delete own documents" 
+on public.documents for delete to authenticated
+using (auth.uid() = user_id);
+
+-- Admin Full Access Policy
+create policy "Admins can manage all document records"
+on public.documents for all to authenticated
+using ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin')
+with check ((auth.jwt() -> 'app_metadata' ->> 'role') = 'admin');
+
+notify pgrst, 'reload schema';
